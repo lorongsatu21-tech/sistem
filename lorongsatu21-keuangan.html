@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LORONGSATU21 — Sistem Keuangan</title>
+<style>
+:root{
+  --navy:#152420; --navy-2:#1d322c; --navy-3:#254038;
+  --paper:#f5f3ec; --paper-2:#ffffff;
+  --ink:#1f2a24; --muted:#7c7768; --line:#e2ddce;
+  --moss:#3d5c46; --moss-dark:#2a4132;
+  --gold:#a9843a; --clay:#b5654a; --danger:#a3402f; --skyblue:#4f7cac; --plum:#7a6ba0;
+  --shadow:0 1px 2px rgba(21,36,32,.06), 0 6px 18px rgba(21,36,32,.07);
+  font-size:16px;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Segoe UI",ui-sans-serif,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
+button,input,select{font-family:inherit;}
+a{color:inherit;}
+
+.app{display:flex;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{
+  width:236px;flex-shrink:0;background:var(--navy);color:#dfe8de;
+  display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;
+  transition:transform .25s ease;z-index:40;overflow-y:auto;
+}
+.sidebar .brand{padding:22px 20px 16px;border-bottom:1px solid rgba(255,255,255,.08);}
+.sidebar .brand .eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#8fae9a;font-weight:700;}
+.sidebar .brand h1{margin:4px 0 0;font-size:17px;font-weight:700;color:#f2efe4;}
+.navgroup{padding:14px 12px 4px;}
+.navgroup .navgroup-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:#7c977f;font-weight:700;padding:6px 10px 6px;}
+.navlink{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;
+  font-size:13.5px;font-weight:600;color:#cdd9c9;cursor:pointer;margin-bottom:2px;
+  text-decoration:none;
+}
+.navlink:hover{background:rgba(255,255,255,.06);color:#fff;}
+.navlink.active{background:var(--moss);color:#fff;}
+.navlink .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.55;flex-shrink:0;}
+.sidebar-footer{margin-top:auto;padding:14px 20px 18px;font-size:11px;color:#8fae9a;border-top:1px solid rgba(255,255,255,.08);}
+
+.sidebar-overlay{display:none;}
+
+/* MAIN */
+.main{flex:1;margin-left:236px;min-width:0;}
+.topheader{
+  background:var(--paper-2);border-bottom:1px solid var(--line);
+  padding:16px 28px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:20;
+}
+.topheader h2{margin:0;font-size:19px;font-weight:700;color:var(--moss-dark);}
+.topheader .subtitle{font-size:12.5px;color:var(--muted);margin-top:2px;}
+.hamburger{display:none;background:none;border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:16px;}
+.page-content{padding:24px 28px 60px;max-width:1180px;}
+
+/* GENERIC */
+.card{background:var(--paper-2);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);}
+.card-pad{padding:16px 18px;}
+.section-title{font-size:15px;font-weight:700;color:var(--moss-dark);margin:0 0 12px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+@media (max-width:900px){.grid2,.grid3,.grid4{grid-template-columns:1fr 1fr;}}
+@media (max-width:600px){.grid2,.grid3,.grid4{grid-template-columns:1fr;}}
+
+.stat-card{background:var(--paper-2);border:1px solid var(--line);border-left:4px solid var(--moss);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);}
+.stat-card.c-blue{border-left-color:var(--skyblue);}
+.stat-card.c-gold{border-left-color:var(--gold);}
+.stat-card.c-plum{border-left-color:var(--plum);}
+.stat-card.c-clay{border-left-color:var(--clay);}
+.legend-row{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:18px;}
+.legend-chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);font-weight:600;}
+.legend-chip .sw{width:9px;height:9px;border-radius:3px;display:inline-block;}
+.section-title-row{display:flex;align-items:center;gap:8px;margin:0 0 12px;flex-wrap:nowrap;}
+.section-title-row .section-title{white-space:nowrap;flex-shrink:0;}
+.inline-select{border:1px solid var(--moss);border-radius:8px;padding:5px 8px;font-size:13px;font-weight:700;color:var(--moss-dark);background:#eef3ec;flex-shrink:1;min-width:0;max-width:150px;}
+.inline-select:focus{outline:none;box-shadow:0 0 0 3px rgba(61,92,70,.15);}
+@media (max-width:380px){
+  .section-title-row .section-title{font-size:13px;}
+  .inline-select{font-size:12px;max-width:118px;padding:4px 6px;}
+}
+td.col-highlight, th.col-highlight{background:rgba(61,92,70,0.12);font-weight:700;}
+thead th.col-highlight{background:rgba(61,92,70,0.28);}
+.stat-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;}
+.stat-card .value{font-size:20px;font-weight:700;margin-top:5px;color:var(--ink);}
+.stat-card .sub{font-size:11.5px;color:var(--muted);margin-top:3px;}
+
+select, input[type=date], input[type=number], input[type=text]{
+  border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;background:#fdfcf9;color:var(--ink);
+}
+select:focus,input:focus{outline:none;border-color:var(--moss);box-shadow:0 0 0 3px rgba(61,92,70,.12);}
+label.f-label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;}
+.field-inline{display:flex;flex-direction:column;gap:4px;}
+.controlbar{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:18px;}
+
+button.btn{font-size:13.5px;font-weight:600;border-radius:9px;padding:9px 16px;cursor:pointer;border:1px solid transparent;}
+.btn-primary{background:var(--moss);color:#fff;}
+.btn-primary:hover{background:var(--moss-dark);}
+.btn-ghost{background:transparent;border-color:var(--line);color:var(--ink);}
+.btn-ghost:hover{background:#eee9dc;}
+.btn-danger{background:transparent;border-color:#e0c3ba;color:var(--danger);}
+.btn-danger:hover{background:#faece7;}
+.btn-sm{padding:6px 11px;font-size:12.5px;}
+
+table{width:100%;border-collapse:collapse;font-size:13px;background:var(--paper-2);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);}
+thead th{text-align:right;padding:10px 12px;background:#eee9dc;color:var(--moss-dark);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--line);}
+thead th:first-child,tbody td:first-child{text-align:left;}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:#faf8f1;}
+tfoot td{padding:9px 12px;text-align:right;font-weight:700;color:var(--moss-dark);background:#eee9dc;border-top:1px solid var(--line);}
+tfoot td:first-child{text-align:left;}
+.tbl-wrap{overflow-x:auto;}
+.pos{color:var(--moss-dark);font-weight:700;}
+.neg{color:var(--danger);font-weight:700;}
+.empty-state{text-align:center;padding:34px 20px;color:var(--muted);font-size:13px;}
+
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;}
+.pill.saved{background:#e2ead9;color:var(--moss-dark);}
+.pill.unsaved{background:#f3e3d3;color:#8a5a26;}
+.pill.pocket{color:#fff;}
+
+.pocket-card{border-radius:12px;border:1px solid var(--line);background:var(--paper-2);box-shadow:var(--shadow);padding:14px 16px;}
+.pocket-card .ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.pocket-card .ph .name{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:7px;}
+.pocket-card .ph .name .sw{width:10px;height:10px;border-radius:3px;}
+.pocket-card .amount{font-size:19px;font-weight:700;}
+.pocket-bar-track{height:7px;border-radius:99px;background:#eee9dc;margin-top:9px;overflow:hidden;}
+.pocket-bar-fill{height:100%;border-radius:99px;}
+
+.unit-name-input{flex:1;min-width:0;border:1px solid transparent;background:transparent;border-radius:7px;padding:5px 7px;font-size:15px;font-weight:700;color:var(--moss-dark);}
+.unit-name-input:hover{background:#f1eee2;}
+.unit-name-input:focus{outline:none;border-color:var(--moss);background:#fff;box-shadow:0 0 0 3px rgba(61,92,70,.12);}
+
+.add-unit-card{border:1.5px dashed var(--line);border-radius:12px;background:transparent;display:flex;align-items:center;justify-content:center;min-height:60px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;}
+.add-unit-card:hover{border-color:var(--moss);color:var(--moss-dark);background:#f1eee2;}
+
+.shift-row{display:grid;grid-template-columns:52px 1fr 1fr;gap:10px;align-items:end;margin-bottom:12px;}
+.shift-row:last-child{margin-bottom:0;}
+.shift-label{font-size:11.5px;font-weight:700;color:var(--muted);padding-bottom:9px;text-transform:uppercase;}
+.input-money{position:relative;}
+.input-money span{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--muted);}
+input.money{width:100%;padding-left:28px;text-align:right;}
+input.count{width:100%;text-align:center;}
+.divider-thin{height:1px;background:var(--line);margin:2px 0 12px;}
+.divider-tight{height:0;margin:2px 0 6px;}
+.group-gap{height:1px;background:var(--line);margin:14px 0 16px;}
+.shift-row-tight{margin-bottom:4px;}
+.subhead{font-size:11.5px;font-weight:700;color:var(--moss-dark);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px;display:flex;align-items:center;gap:8px;}
+.subhead:first-child{margin-top:0;}
+.subhead .subhead-line{flex:1;height:1px;background:var(--line);}
+.lain-row{display:grid;grid-template-columns:132px 118px 1fr 30px;gap:8px;align-items:center;margin-bottom:8px;}
+.lain-row select{width:100%;}
+.lain-row input.money{padding-left:26px;}
+.lain-row .lain-del{border:1px solid var(--line);background:#fff;border-radius:7px;width:30px;height:32px;cursor:pointer;color:var(--danger);font-size:13px;}
+.lain-row .lain-del:hover{background:#faece7;}
+.add-lain-btn{font-size:12px;font-weight:600;color:var(--moss-dark);background:transparent;border:1px dashed var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;margin-top:2px;}
+.add-lain-btn:hover{background:#f1eee2;border-color:var(--moss);}
+.unit-breakdown{font-size:11px;color:var(--muted);padding:0 16px 10px;}
+
+.pct-row{display:grid;grid-template-columns:1.4fr .8fr;gap:10px;align-items:center;padding:7px 0;}
+.pct-row .pname{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;}
+.pct-row .pname .sw{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+.pct-input-wrap{position:relative;}
+.pct-input-wrap input{width:100%;padding-right:24px;text-align:right;}
+.pct-input-wrap span{position:absolute;right:9px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);}
+.pct-sum-note{font-size:12px;margin-top:10px;font-weight:600;}
+.pct-sum-note.ok{color:var(--moss-dark);}
+.pct-sum-note.bad{color:var(--danger);}
+
+.bar-chart{display:flex;align-items:flex-end;gap:10px;height:150px;padding-top:10px;}
+.bar-chart .bcol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;min-width:0;}
+.bar-chart .bcol .bval{font-size:10.5px;color:var(--muted);font-weight:700;white-space:nowrap;}
+.bar-chart .bcol .bbar{width:60%;border-radius:5px 5px 0 0;background:var(--moss);min-height:2px;}
+.bar-chart .bcol .blabel{font-size:10.5px;color:var(--muted);margin-top:2px;text-align:center;}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--moss-dark);color:#f2efe4;padding:10px 20px;border-radius:999px;font-size:13px;font-weight:600;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:80;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+.loading-overlay{position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:100;font-size:13px;color:var(--muted);}
+.spinner{width:26px;height:26px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--moss);animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(21,36,32,.45);display:flex;align-items:center;justify-content:center;z-index:90;padding:20px;}
+.modal-box{background:var(--paper-2);border-radius:14px;padding:20px;max-width:380px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25);}
+.modal-msg{font-size:14px;color:var(--ink);line-height:1.5;margin-bottom:16px;}
+.modal-input{width:100%;margin-bottom:16px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;}
+
+.sync-banner{background:#fff4e8;border:1px solid #f0d3ab;color:#8a5a26;font-size:12.5px;padding:9px 14px;border-radius:9px;margin-bottom:16px;display:none;}
+
+@media (max-width:900px){
+  .sidebar{transform:translateX(-100%);}
+  .sidebar.open{transform:translateX(0);}
+  .main{margin-left:0;}
+  .hamburger{display:inline-block;}
+  .sidebar-overlay.open{display:block;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:35;}
+  .page-content{padding:18px 16px 60px;}
+  .topheader{padding:14px 16px;}
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div>Memuat data keuangan...</div>
+</div>
+
+<div class="app">
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="eyebrow">LORONGSATU21</div>
+      <h1>Sistem Keuangan</h1>
+    </div>
+    <nav id="navContainer"></nav>
+    <div class="sidebar-footer">Data tersinkron otomatis lewat akun Claude Anda di HP maupun komputer.</div>
+  </aside>
+
+  <div class="main">
+    <div class="topheader">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" id="btnHamburger">☰</button>
+        <div>
+          <h2 id="pageTitle">Dashboard</h2>
+          <div class="subtitle" id="pageSubtitle">Ringkasan keuangan seluruh unit</div>
+        </div>
+      </div>
+      <div id="driveSyncStatus" style="font-size:11.5px;color:var(--muted);text-align:right;"></div>
+    </div>
+    <div class="page-content" id="pageContent"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= CONSTANTS ================= */
+const DEFAULT_UNITS = [
+  { key:"fotokopi_foto", label:"Fotokopi & Foto" },
+  { key:"atk", label:"ATK" },
+  { key:"undangan", label:"Cetak Undangan" },
+  { key:"pakaian", label:"Pakaian" }
+];
+const DEFAULT_PCT = { stok:60, operasional:20, investasi:5, dana_aman:5, profit:10 };
+const POCKET_DEFS = [
+  { key:"stok", label:"Kantong Stok", color:"#6b8f71" },
+  { key:"operasional", label:"Kantong Operasional", color:"#4f7cac" },
+  { key:"investasi", label:"Kantong Investasi", color:"#a9843a" },
+  { key:"dana_aman", label:"Kantong Dana Aman", color:"#7a6ba0" },
+  { key:"profit", label:"Kantong Profit", color:"#b5654a" }
+];
+const MONTH_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+
+const NAV = [
+  { group:"Utama", items:[ {id:"dashboard", label:"Dashboard"} ] },
+  { group:"Transaksi", items:[ {id:"pemasukan", label:"Kas Masuk"}, {id:"pengeluaran", label:"Pengeluaran Kas"} ] },
+  { group:"Kantong Kas", items:[ {id:"kantong", label:"Saldo Kantong"}, {id:"alokasi", label:"Pengaturan Alokasi"} ] },
+  { group:"Laporan", items:[ {id:"riwayat", label:"Riwayat Harian"}, {id:"rekap-bulanan", label:"Rekap Bulanan"}, {id:"rekap-tahunan", label:"Rekap Tahunan"}, {id:"analisis", label:"Analisis Keuangan"} ] },
+  { group:"Lainnya", items:[ {id:"pengaturan", label:"Pengaturan Unit"} ] }
+];
+const PAGE_META = {
+  "dashboard":["Dashboard","Ringkasan keuangan seluruh unit hari ini"],
+  "pemasukan":["Kas Masuk","Catat kas masuk pagi & sore per unit"],
+  "pengeluaran":["Pengeluaran Kas","Catat pengeluaran dari kantong kas per unit"],
+  "kantong":["Saldo Kantong Kas","Saldo tiap kantong per unit dan total per kantong"],
+  "alokasi":["Pengaturan Alokasi","Atur persentase pembagian otomatis ke 5 kantong, per unit"],
+  "riwayat":["Riwayat Harian","Riwayat kas masuk harian per unit"],
+  "rekap-bulanan":["Rekap Bulanan","Rekap kas masuk & pengeluaran per bulan, per unit"],
+  "rekap-tahunan":["Rekap Tahunan","Rekap kas masuk & pengeluaran per tahun, per unit"],
+  "analisis":["Analisis Keuangan","Analisis kondisi keuangan per unit berdasarkan kantong kas"],
+  "pengaturan":["Pengaturan Unit","Kelola nama unit usaha"]
+};
+
+const K_UNITS="l21_units", K_PCT="l21_pockets_config", K_PCT_HIST="l21_pockets_config_history", K_PEMASUKAN="l21_pemasukan", K_PENGELUARAN="l21_pengeluaran";
+
+/* ================= GOOGLE SHEETS SYNC ================= */
+// CATATAN: Claude.ai memblokir koneksi fetch() langsung dari artifact ke domain
+// luar (termasuk script.google.com) lewat Content Security Policy platform.
+// Jalur Google Sheets ini TIDAK BISA dipakai langsung dari dalam aplikasi ini.
+// Dikosongkan supaya aplikasi tidak buang waktu mencoba & memakai penyimpanan
+// bawaan Claude (window.storage) sebagai jalur utama, dengan Ekspor/Impor
+// Excel & JSON sebagai cara pindah data manual antar perangkat.
+// Sebelumnya dikosongkan karena diblokir CSP saat dibuka sebagai artifact Claude.
+// Setelah aplikasi ini di-deploy sebagai website (GitHub Pages, sama seperti
+// Buku Kelas Guru), koneksi langsung ke Apps Script ini akan berjalan normal.
+const SHEETS_ENDPOINT = "https://script.google.com/macros/s/AKfycbxqDE4QFNz06-kpg5Z6W5wlY-naowebtKoDPMdO8GVVhl_dCYjE4fLb5q3wj6Y9ZPr4_Q/exec";
+const SHEETS_TOKEN = "Bismillah148211$";
+const sheetsConfigured = !!SHEETS_ENDPOINT;
+
+const SHEET_UNIT="Unit", SHEET_ALOKASI="Alokasi Kantong", SHEET_RIWAYAT_ALOKASI="Riwayat Alokasi",
+      SHEET_KAS_MASUK="Kas Masuk", SHEET_PEMASUKAN_LAIN="Pemasukan Lain", SHEET_PENGELUARAN="Pengeluaran";
+const HDR_UNIT=["Kode Internal","Nama Unit"];
+const HDR_ALOKASI=["Unit","Kantong Stok %","Kantong Operasional %","Kantong Investasi %","Kantong Dana Aman %","Kantong Profit %"];
+const HDR_RIWAYAT_ALOKASI=["Tanggal Ubah","Unit","Stok %","Operasional %","Investasi %","Dana Aman %","Profit %"];
+const HDR_KAS_MASUK=["Tanggal","Unit","Kas Pagi","Trx Pagi","Kas Sore","Trx Sore","Transfer Pagi","Trx Transfer Pagi","Transfer Sore","Trx Transfer Sore","Alokasi Stok","Alokasi Operasional","Alokasi Investasi","Alokasi Dana Aman","Alokasi Profit"];
+const HDR_PEMASUKAN_LAIN=["Tanggal","Unit","Kategori","Jumlah","Keterangan"];
+const HDR_PENGELUARAN_SHEET=["Tanggal","Unit","Kantong","Jumlah","Keterangan"];
+
+function asText(v){ return "'"+v; } // paksa Google Sheets simpan sebagai teks, bukan tanggal/angka otomatis
+
+async function sheetsGetAll(sheetName){
+  const attempts=3;
+  for(let i=0;i<attempts;i++){
+    try{
+      const url=`${SHEETS_ENDPOINT}?action=getAll&sheet=${encodeURIComponent(sheetName)}&token=${encodeURIComponent(SHEETS_TOKEN)}`;
+      const res=await fetch(url);
+      const data=await res.json();
+      if(data.error) throw new Error(data.error);
+      return data.rows||[];
+    }catch(e){
+      if(i===attempts-1){ console.error(`Gagal memuat sheet "${sheetName}" setelah ${attempts} percobaan:`, e); return null; }
+      await new Promise(r=>setTimeout(r,500*(i+1)));
+    }
+  }
+}
+async function sheetsReplaceAll(sheetName, headers, rows){
+  const attempts=3;
+  for(let i=0;i<attempts;i++){
+    try{
+      const res=await fetch(SHEETS_ENDPOINT,{
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body:JSON.stringify({action:"replaceAll", sheet:sheetName, headers, rows, token:SHEETS_TOKEN})
+      });
+      const data=await res.json();
+      if(data.error) throw new Error(data.error);
+      return true;
+    }catch(e){
+      if(i===attempts-1){ console.error(`Gagal menyimpan sheet "${sheetName}" setelah ${attempts} percobaan:`, e); return false; }
+      await new Promise(r=>setTimeout(r,500*(i+1)));
+    }
+  }
+}
+function normalizeDateCell(v){
+  if(v===null||v===undefined) return null;
+  const s=String(v).trim();
+  const m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m) return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+  return null;
+}
+function unitByLabelMap(unitsList){ const m={}; unitsList.forEach(u=>{ m[u.label.trim().toLowerCase()]=u.key; }); return m; }
+
+/* ---- konversi antar state aplikasi <-> baris sheet ---- */
+function rowsFromUnits(){ return UNITS.map(u=>({ "Kode Internal":u.key, "Nama Unit":u.label })); }
+function unitsFromRows(rows){ return rows.map(r=>({ key:String(r["Kode Internal"]||"").trim(), label:String(r["Nama Unit"]||"").trim() })).filter(u=>u.key && u.label); }
+
+function rowsFromPctConfig(){
+  return UNITS.map(u=>{ const c=getUnitPct(u.key); return { "Unit":u.label,"Kantong Stok %":c.stok,"Kantong Operasional %":c.operasional,"Kantong Investasi %":c.investasi,"Kantong Dana Aman %":c.dana_aman,"Kantong Profit %":c.profit }; });
+}
+function pctConfigFromRows(rows, unitsList){
+  const byLabel=unitByLabelMap(unitsList); const cfg={};
+  rows.forEach(r=>{ const key=byLabel[String(r["Unit"]||"").trim().toLowerCase()]; if(!key) return;
+    cfg[key]={ stok:Number(r["Kantong Stok %"])||0, operasional:Number(r["Kantong Operasional %"])||0, investasi:Number(r["Kantong Investasi %"])||0, dana_aman:Number(r["Kantong Dana Aman %"])||0, profit:Number(r["Kantong Profit %"])||0 };
+  });
+  return cfg;
+}
+
+function rowsFromPctHistory(){
+  return PCT_HISTORY.map(h=>({ "Tanggal Ubah":asText(h.savedAt), "Unit":unitLabel(h.unitKey), "Stok %":h.config.stok,"Operasional %":h.config.operasional,"Investasi %":h.config.investasi,"Dana Aman %":h.config.dana_aman,"Profit %":h.config.profit }));
+}
+function pctHistoryFromRows(rows, unitsList){
+  const byLabel=unitByLabelMap(unitsList);
+  return rows.map(r=>{ const key=byLabel[String(r["Unit"]||"").trim().toLowerCase()]; if(!key) return null;
+    return { id:uid(), unitKey:key, savedAt:String(r["Tanggal Ubah"]||new Date().toISOString()),
+      config:{ stok:Number(r["Stok %"])||0, operasional:Number(r["Operasional %"])||0, investasi:Number(r["Investasi %"])||0, dana_aman:Number(r["Dana Aman %"])||0, profit:Number(r["Profit %"])||0 } };
+  }).filter(Boolean);
+}
+
+function rowsFromPemasukan(){
+  const rows=[];
+  Object.keys(PEMASUKAN).sort().forEach(dt=>{
+    const entry=PEMASUKAN[dt]; if(!entry||!entry.units) return;
+    UNITS.forEach(u=>{
+      const d=entry.units[u.key]; if(!d) return;
+      const a=d.alokasi||{stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+      rows.push({
+        "Tanggal":asText(dt), "Unit":u.label,
+        "Kas Pagi":d.kasPagi||0, "Trx Pagi":d.trxPagi||0, "Kas Sore":d.kasSore||0, "Trx Sore":d.trxSore||0,
+        "Transfer Pagi":d.transferPagi||0, "Trx Transfer Pagi":d.transferTrxPagi||0, "Transfer Sore":d.transferSore||0, "Trx Transfer Sore":d.transferTrxSore||0,
+        "Alokasi Stok":a.stok||0, "Alokasi Operasional":a.operasional||0, "Alokasi Investasi":a.investasi||0, "Alokasi Dana Aman":a.dana_aman||0, "Alokasi Profit":a.profit||0
+      });
+    });
+  });
+  return rows;
+}
+function rowsFromPemasukanLain(){
+  const rows=[];
+  Object.keys(PEMASUKAN).sort().forEach(dt=>{
+    const entry=PEMASUKAN[dt]; if(!entry||!entry.units) return;
+    UNITS.forEach(u=>{
+      const d=entry.units[u.key]; if(!d||!d.lainLain) return;
+      d.lainLain.forEach(item=>{
+        rows.push({ "Tanggal":asText(dt), "Unit":u.label, "Kategori":item.kategori||"lainnya", "Jumlah":item.jumlah||0, "Keterangan":item.keterangan||"" });
+      });
+    });
+  });
+  return rows;
+}
+function pemasukanFromRows(kasRows, lainRows, unitsList){
+  const byLabel=unitByLabelMap(unitsList); const result={};
+  kasRows.forEach(r=>{
+    const dt=normalizeDateCell(r["Tanggal"]); const key=byLabel[String(r["Unit"]||"").trim().toLowerCase()];
+    if(!dt||!key) return;
+    if(!result[dt]) result[dt]={units:{}, savedAt:new Date().toISOString()};
+    result[dt].units[key]={
+      kasPagi:Number(r["Kas Pagi"])||0, trxPagi:Number(r["Trx Pagi"])||0, kasSore:Number(r["Kas Sore"])||0, trxSore:Number(r["Trx Sore"])||0,
+      transferPagi:Number(r["Transfer Pagi"])||0, transferTrxPagi:Number(r["Trx Transfer Pagi"])||0, transferSore:Number(r["Transfer Sore"])||0, transferTrxSore:Number(r["Trx Transfer Sore"])||0,
+      lainLain:[],
+      alokasi:{ stok:Number(r["Alokasi Stok"])||0, operasional:Number(r["Alokasi Operasional"])||0, investasi:Number(r["Alokasi Investasi"])||0, dana_aman:Number(r["Alokasi Dana Aman"])||0, profit:Number(r["Alokasi Profit"])||0 }
+    };
+  });
+  lainRows.forEach(r=>{
+    const dt=normalizeDateCell(r["Tanggal"]); const key=byLabel[String(r["Unit"]||"").trim().toLowerCase()];
+    if(!dt||!key||!result[dt]||!result[dt].units[key]) return;
+    result[dt].units[key].lainLain.push({ id:uid(), kategori:r["Kategori"]||"lainnya", jumlah:Number(r["Jumlah"])||0, keterangan:r["Keterangan"]||"" });
+  });
+  return result;
+}
+
+function rowsFromPengeluaran(){
+  return PENGELUARAN.map(ex=>({ "Tanggal":asText(ex.date), "Unit":unitLabel(ex.unitKey), "Kantong":(POCKET_DEFS.find(p=>p.key===ex.kantong)||{}).label||ex.kantong, "Jumlah":ex.jumlah, "Keterangan":ex.keterangan||"" }));
+}
+function pengeluaranFromRows(rows, unitsList){
+  const byLabel=unitByLabelMap(unitsList);
+  const byPocketLabel={}; POCKET_DEFS.forEach(p=>{ byPocketLabel[p.label.trim().toLowerCase()]=p.key; });
+  return rows.map(r=>{
+    const dt=normalizeDateCell(r["Tanggal"]); const unitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()];
+    const kantong=byPocketLabel[String(r["Kantong"]||"").trim().toLowerCase()];
+    if(!dt||!unitKey||!kantong) return null;
+    return { id:uid(), date:dt, unitKey, kantong, jumlah:Number(r["Jumlah"])||0, keterangan:r["Keterangan"]||"", createdAt:new Date().toISOString() };
+  }).filter(Boolean);
+}
+
+/* ---- fungsi simpan per-entitas (Sheets kalau tersedia) ---- */
+async function saveUnitsAndPct(){
+  if(!sheetsConfigured) return storageSet(K_UNITS,UNITS) && storageSet(K_PCT,PCT_CONFIG);
+  const r1=await sheetsReplaceAll(SHEET_UNIT, HDR_UNIT, rowsFromUnits());
+  const r2=await sheetsReplaceAll(SHEET_ALOKASI, HDR_ALOKASI, rowsFromPctConfig());
+  return r1&&r2;
+}
+async function savePctHistory(){
+  if(!sheetsConfigured) return storageSet(K_PCT_HIST,PCT_HISTORY);
+  return sheetsReplaceAll(SHEET_RIWAYAT_ALOKASI, HDR_RIWAYAT_ALOKASI, rowsFromPctHistory());
+}
+async function savePemasukan(){
+  const ok = sheetsConfigured
+    ? (await sheetsReplaceAll(SHEET_KAS_MASUK, HDR_KAS_MASUK, rowsFromPemasukan())) && (await sheetsReplaceAll(SHEET_PEMASUKAN_LAIN, HDR_PEMASUKAN_LAIN, rowsFromPemasukanLain()))
+    : await storageSet(K_PEMASUKAN,PEMASUKAN);
+  return ok;
+}
+async function savePengeluaran(){
+  const ok = sheetsConfigured
+    ? await sheetsReplaceAll(SHEET_PENGELUARAN, HDR_PENGELUARAN_SHEET, rowsFromPengeluaran())
+    : await storageSet(K_PENGELUARAN,PENGELUARAN);
+  return ok;
+}
+
+/* ================= SINKRON GOOGLE DRIVE (via Claude API + MCP) ================= */
+const DRIVE_MCP = [{ type:"url", url:"https://drivemcp.googleapis.com/mcp/v1", name:"google-drive" }];
+
+function rowsToCSV(headers, rows){
+  const esc=(v)=>{ const s=String(v===undefined||v===null?"":v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const lines=[headers.map(esc).join(",")];
+  rows.forEach(r=>{
+    const clean={}; Object.keys(r).forEach(k=>{ let v=r[k]; if(typeof v==="string"&&v.startsWith("'")) v=v.slice(1); clean[k]=v; });
+    lines.push(headers.map(h=>esc(clean[h])).join(","));
+  });
+  return lines.join("\n");
+}
+
+function setDriveSyncStatus(text, isError){
+  const el=document.getElementById("driveSyncStatus");
+  if(!el) return;
+  el.textContent=text;
+  el.style.color = isError ? "var(--danger)" : "var(--muted)";
+}
+
+async function syncDriveInBackground(fileName, headers, rows){
+  setDriveSyncStatus("Menyinkronkan ke Google Drive...");
+  const csv = rowsToCSV(headers, rows);
+  const prompt = `Di Google Drive saya, cari file bernama persis "${fileName}". Kalau file itu sudah ada, timpa/ganti seluruh isinya dengan teks CSV di bawah ini (isi lama dihapus total, diganti isi baru ini). Kalau belum ada, buat file baru dengan nama itu berisi teks CSV ini. Jangan buat file duplikat kalau sudah ada satu dengan nama persis sama. Setelah selesai, balas HANYA dengan kata "OK" tanpa penjelasan apa pun.\n\n${csv}`;
+  try{
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-6",
+        max_tokens:1200,
+        messages:[{ role:"user", content: prompt }],
+        mcp_servers: DRIVE_MCP
+      })
+    });
+    const data = await res.json();
+    console.log("[Drive Sync] Balasan API lengkap:", JSON.stringify(data, null, 2));
+
+    if(data.error){
+      setDriveSyncStatus(`Gagal sinkron: ${data.error.message||JSON.stringify(data.error)}`, true);
+      return;
+    }
+    const blockTypes = (data.content||[]).map(b=>b.type);
+    const toolUses = (data.content||[]).filter(b=>b.type==="mcp_tool_use").map(b=>b.name);
+    const toolResults = (data.content||[]).filter(b=>b.type==="mcp_tool_result");
+    const textOut = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ");
+    console.log("[Drive Sync] Tipe blok balasan:", blockTypes, "| Tool dipanggil:", toolUses);
+
+    if(textOut.toUpperCase().includes("OK") && toolUses.length>0){
+      setDriveSyncStatus(`Tersinkron ke Google Drive · ${new Date().toLocaleTimeString("id-ID")}`);
+    } else if(toolUses.length===0){
+      setDriveSyncStatus(`Google Drive tidak tersambung untuk aksi ini (tidak ada alat yang dipanggil) — lihat Console untuk detail`, true);
+    } else {
+      setDriveSyncStatus(`Respons tidak sesuai dugaan: "${textOut.slice(0,80)}" — lihat Console untuk detail lengkap`, true);
+    }
+  }catch(e){
+    console.error("[Drive Sync] Error jaringan/parsing:", e);
+    setDriveSyncStatus(`Gagal sinkron: ${e.message} (data tetap tersimpan di aplikasi)`, true);
+  }
+}
+
+/* ================= STORAGE (fallback lama, dipakai kalau Sheets belum tersambung) ================= */
+let storageAvailable = !!(window.storage && window.storage.get && window.storage.set);
+async function storageGet(key, fallback){
+  if(!storageAvailable) return fallback;
+  try{
+    const res = await window.storage.get(key, false);
+    if(res && typeof res.value === "string"){ return JSON.parse(res.value); }
+    return fallback;
+  }catch(e){ return fallback; }
+}
+async function storageSet(key, value){
+  if(!storageAvailable) return false;
+  const payload = JSON.stringify(value);
+  const attempts = 3;
+  for(let i=0;i<attempts;i++){
+    try{ await window.storage.set(key, payload, false); return true; }
+    catch(e){
+      if(i===attempts-1){ console.error("Gagal menyimpan ke cloud setelah "+attempts+" percobaan:", e); }
+      else{ await new Promise(r=>setTimeout(r, 500*(i+1))); }
+    }
+  }
+  return false;
+}
+
+/* ================= STATE ================= */
+let UNITS = [];
+let PCT_CONFIG = {};       // { unitKey: {stok,operasional,investasi,dana_aman,profit} }
+let PCT_HISTORY = [];      // [{id, unitKey, config, savedAt}]
+let PEMASUKAN = {};        // { date: { units: { unitKey: {kasPagi,trxPagi,kasSore,trxSore,alokasi} } } }
+let PENGELUARAN = [];      // [{id,date,unitKey,kantong,jumlah,keterangan,createdAt}]
+
+/* ================= UTILS ================= */
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function todayStr(){ const d=new Date(); const off=d.getTimezoneOffset(); return new Date(d.getTime()-off*60000).toISOString().slice(0,10); }
+function formatRupiah(n){ n=Number(n)||0; return "Rp "+n.toLocaleString("id-ID"); }
+function parseMoneyInput(str){ if(!str) return 0; const c=String(str).replace(/[^\d]/g,""); return c?parseInt(c,10):0; }
+function escapeHtml(str){ return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function slugify(label, existing){
+  let base=label.toLowerCase().trim().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,""); if(!base) base="unit";
+  let key=base,i=2; while(existing.some(u=>u.key===key)){ key=base+"_"+i; i++; } return key;
+}
+function dateLabel(dt){ const d=new Date(dt+"T00:00:00"); return d.toLocaleDateString("id-ID",{weekday:"short",day:"2-digit",month:"short",year:"numeric"}); }
+function unitLabel(key){ const u=UNITS.find(x=>x.key===key); return u?u.label:key; }
+function showToast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1900); }
+
+function customConfirm(message, okLabel){
+  return new Promise(resolve=>{
+    const overlay=document.createElement("div");
+    overlay.className="modal-overlay";
+    overlay.innerHTML=`
+      <div class="modal-box">
+        <div class="modal-msg">${escapeHtml(message)}</div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" data-act="cancel">Batal</button>
+          <button class="btn btn-primary" data-act="ok">${escapeHtml(okLabel||"Ya, Lanjutkan")}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const finish=(val)=>{ if(overlay.parentNode) document.body.removeChild(overlay); resolve(val); };
+    overlay.querySelector('[data-act="ok"]').addEventListener("click", ()=>finish(true));
+    overlay.querySelector('[data-act="cancel"]').addEventListener("click", ()=>finish(false));
+    overlay.addEventListener("click", (e)=>{ if(e.target===overlay) finish(false); });
+  });
+}
+function customPrompt(message, defaultValue){
+  return new Promise(resolve=>{
+    const overlay=document.createElement("div");
+    overlay.className="modal-overlay";
+    overlay.innerHTML=`
+      <div class="modal-box">
+        <div class="modal-msg">${escapeHtml(message)}</div>
+        <input type="text" class="modal-input" value="${escapeHtml(defaultValue||"")}">
+        <div class="modal-actions">
+          <button class="btn btn-ghost" data-act="cancel">Batal</button>
+          <button class="btn btn-primary" data-act="ok">Simpan</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const input=overlay.querySelector(".modal-input");
+    setTimeout(()=>input.focus(),0);
+    const finish=(val)=>{ if(overlay.parentNode) document.body.removeChild(overlay); resolve(val); };
+    overlay.querySelector('[data-act="ok"]').addEventListener("click", ()=>finish(input.value));
+    overlay.querySelector('[data-act="cancel"]').addEventListener("click", ()=>finish(null));
+    input.addEventListener("keydown", (e)=>{ if(e.key==="Enter") finish(input.value); });
+    overlay.addEventListener("click", (e)=>{ if(e.target===overlay) finish(null); });
+  });
+}
+
+/* ================= CALC ================= */
+function getUnitPct(unitKey){ return PCT_CONFIG[unitKey] || {...DEFAULT_PCT}; }
+function computeAllocation(unitKey, totalKas){
+  const cfg=getUnitPct(unitKey);
+  const keys=POCKET_DEFS.map(p=>p.key);
+  const alloc={}; let sum4=0;
+  keys.slice(0,4).forEach(k=>{ const amt=Math.floor(totalKas*(cfg[k]||0)/100); alloc[k]=amt; sum4+=amt; });
+  alloc[keys[4]] = totalKas - sum4;
+  return alloc;
+}
+function unitDayValues(dateStr, unitKey){
+  const e=PEMASUKAN[dateStr]; if(!e||!e.units||!e.units[unitKey]) return null;
+  return e.units[unitKey];
+}
+function unitDayTotals(dateStr, unitKey){
+  const d=unitDayValues(dateStr,unitKey);
+  if(!d) return {kas:0,trx:0,tunai:0,transfer:0,lain:0};
+  const tunai=(d.kasPagi||0)+(d.kasSore||0);
+  const transfer=(d.transferPagi||0)+(d.transferSore||0);
+  const lain=(d.lainLain||[]).reduce((s,x)=>s+(x.jumlah||0),0);
+  const trxTunai=(d.trxPagi||0)+(d.trxSore||0);
+  const trxTransfer=(d.transferTrxPagi||0)+(d.transferTrxSore||0);
+  const trxLain=(d.lainLain||[]).length;
+  return { kas:tunai+transfer+lain, trx:trxTunai+trxTransfer+trxLain, tunai, transfer, lain };
+}
+function allDates(){ return Object.keys(PEMASUKAN).sort(); }
+function unitPocketAllocForDate(dt, unitKey){
+  const d=unitDayValues(dt,unitKey);
+  return (d && d.alokasi) ? d.alokasi : {stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+}
+function unitPocketAllocForRange(unitKey, fromDt, toDt){
+  const sum={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+  Object.keys(PEMASUKAN).forEach(dt=>{
+    if(dt<fromDt||dt>toDt) return;
+    const a=unitPocketAllocForDate(dt,unitKey);
+    POCKET_DEFS.forEach(p=>{ sum[p.key]+=(a[p.key]||0); });
+  });
+  return sum;
+}
+function renderPocketUnitTable(bodyId, footId, valuesByUnit, highlightUnit, highlightKantong){
+  const rows = POCKET_DEFS.map(p=>{
+    let rowTotal=0;
+    const rowHl = highlightKantong===p.key;
+    const cells = UNITS.map(u=>{
+      const v=(valuesByUnit[u.key] && valuesByUnit[u.key][p.key])||0; rowTotal+=v;
+      const colHl = highlightUnit===u.key;
+      const cls = (colHl||rowHl) ? ' class="col-highlight"' : '';
+      return `<td${cls}>${formatRupiah(v)}</td>`;
+    }).join("");
+    const trStyle = rowHl ? ' style="background:rgba(61,92,70,0.06);"' : '';
+    return `<tr${trStyle}><td style="display:flex;align-items:center;gap:8px;border-left:3px solid ${p.color};padding-left:9px;"><span class="sw" style="width:9px;height:9px;border-radius:3px;background:${p.color};display:inline-block;"></span>${p.label}</td>${cells}<td class="rowtotal pos">${formatRupiah(rowTotal)}</td></tr>`;
+  }).join("");
+  document.getElementById(bodyId).innerHTML=rows;
+  let grand=0;
+  const footCells = UNITS.map(u=>{
+    const t=POCKET_DEFS.reduce((s,p)=>s+((valuesByUnit[u.key]&&valuesByUnit[u.key][p.key])||0),0); grand+=t;
+    const cls = highlightUnit===u.key ? ' class="col-highlight"' : '';
+    return `<td${cls}>${formatRupiah(t)}</td>`;
+  }).join("");
+  document.getElementById(footId).innerHTML = `<td>Total Semua Kantong</td>${footCells}<td>${formatRupiah(grand)}</td>`;
+}
+
+function pocketBalances(unitKey){
+  const bal={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+  Object.keys(PEMASUKAN).forEach(dt=>{
+    const u=PEMASUKAN[dt].units && PEMASUKAN[dt].units[unitKey];
+    if(u && u.alokasi){ POCKET_DEFS.forEach(p=>{ bal[p.key]+=(u.alokasi[p.key]||0); }); }
+  });
+  PENGELUARAN.forEach(ex=>{ if(ex.unitKey===unitKey && bal[ex.kantong]!==undefined) bal[ex.kantong]-=ex.jumlah; });
+  return bal;
+}
+function pocketBalanceTotal(unitKey){ const b=pocketBalances(unitKey); return POCKET_DEFS.reduce((s,p)=>s+b[p.key],0); }
+function unitIncomeInRange(unitKey, fromDt, toDt){
+  let kas=0,trx=0;
+  Object.keys(PEMASUKAN).forEach(dt=>{
+    if(dt<fromDt||dt>toDt) return;
+    const t=unitDayTotals(dt,unitKey); kas+=t.kas; trx+=t.trx;
+  });
+  return {kas,trx};
+}
+function unitExpenseInRange(unitKey, fromDt, toDt){
+  let total=0; const byPocket={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+  PENGELUARAN.forEach(ex=>{
+    if(ex.unitKey!==unitKey) return;
+    if(ex.date<fromDt||ex.date>toDt) return;
+    total+=ex.jumlah; byPocket[ex.kantong]=(byPocket[ex.kantong]||0)+ex.jumlah;
+  });
+  return {total, byPocket};
+}
+function monthRange(year,month){ // month 1-12
+  const from = `${year}-${String(month).padStart(2,"0")}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const to = `${year}-${String(month).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
+  return {from,to};
+}
+function yearsPresent(){
+  const set=new Set();
+  Object.keys(PEMASUKAN).forEach(dt=>set.add(dt.slice(0,4)));
+  PENGELUARAN.forEach(ex=>set.add(ex.date.slice(0,4)));
+  const arr=[...set].sort((a,b)=>b.localeCompare(a));
+  if(arr.length===0) arr.push(String(new Date().getFullYear()));
+  return arr;
+}
+function dedupPctHistory(history){
+  const sorted=[...history].sort((a,b)=>a.savedAt.localeCompare(b.savedAt));
+  const result=[]; const lastByUnit={};
+  sorted.forEach(h=>{
+    const prev=lastByUnit[h.unitKey];
+    const same = prev && POCKET_DEFS.every(p=>(prev.config[p.key]||0)===((h.config[p.key])||0));
+    if(!same){ result.push(h); lastByUnit[h.unitKey]=h; }
+  });
+  return result;
+}
+
+/* ================= NAV / ROUTER ================= */
+let currentPage="dashboard";
+let pendingPemasukanDate=null;
+
+function buildNav(){
+  const nav=document.getElementById("navContainer");
+  nav.innerHTML="";
+  NAV.forEach(grp=>{
+    const g=document.createElement("div"); g.className="navgroup";
+    g.innerHTML=`<div class="navgroup-label">${grp.group}</div>`;
+    grp.items.forEach(it=>{
+      const a=document.createElement("a");
+      a.className="navlink"; a.href="javascript:void(0)"; a.dataset.id=it.id;
+      a.innerHTML=`<span class="dot"></span>${it.label}`;
+      a.addEventListener("click", (e)=>{ e.preventDefault(); navigateTo(it.id); });
+      g.appendChild(a);
+    });
+    nav.appendChild(g);
+  });
+}
+function setActiveNav(id){
+  document.querySelectorAll(".navlink").forEach(a=>a.classList.toggle("active", a.dataset.id===id));
+  const meta=PAGE_META[id]||["",""];
+  document.getElementById("pageTitle").textContent=meta[0];
+  document.getElementById("pageSubtitle").textContent=meta[1];
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarOverlay").classList.remove("open");
+}
+function navigateTo(id){
+  currentPage=id||"dashboard";
+  setActiveNav(currentPage);
+  const c=document.getElementById("pageContent");
+  const renderers={
+    "dashboard":renderDashboard,"pemasukan":renderPemasukan,"pengeluaran":renderPengeluaran,
+    "kantong":renderKantong,"alokasi":renderAlokasi,"riwayat":renderRiwayat,"rekap-bulanan":renderRekapBulanan,
+    "rekap-tahunan":renderRekapTahunan,"analisis":renderAnalisis,"pengaturan":renderPengaturan
+  };
+  try{
+    (renderers[currentPage]||renderDashboard)(c);
+  }catch(err){
+    console.error("Render error on page", currentPage, err);
+    c.innerHTML = `<div class="empty-state">Terjadi kendala saat membuka halaman ini. Coba klik menu lain lalu kembali lagi.</div>`;
+  }
+}
+
+/* ================= DASHBOARD ================= */
+function renderDashboard(c){
+  const dt=todayStr();
+  let totKasHariIni=0, totTrxHariIni=0, totSaldoSemua=0;
+  const rows = UNITS.map(u=>{
+    const t=unitDayTotals(dt,u.key);
+    totKasHariIni+=t.kas; totTrxHariIni+=t.trx;
+    const bal=pocketBalanceTotal(u.key); totSaldoSemua+=bal;
+    return {u,t,bal};
+  });
+
+  let unitCards = rows.map(r=>{
+    const balances = pocketBalances(r.u.key);
+    const barSegs = POCKET_DEFS.map(p=>{
+      const pct = r.bal>0 ? Math.max(0,(balances[p.key]/r.bal*100)) : 0;
+      return `<div style="width:${pct}%;background:${p.color};height:100%;"></div>`;
+    }).join("");
+    return `
+    <div class="card card-pad">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div style="font-weight:700;font-size:14.5px;color:var(--moss-dark);">${escapeHtml(r.u.label)}</div>
+        <div style="font-size:12px;color:var(--muted);">Hari ini</div>
+      </div>
+      <div style="display:flex;gap:18px;margin-bottom:10px;">
+        <div><div style="font-size:11px;color:var(--muted);">Kas Masuk</div><div style="font-weight:700;font-size:16px;">${formatRupiah(r.t.kas)}</div></div>
+        <div><div style="font-size:11px;color:var(--muted);">Transaksi</div><div style="font-weight:700;font-size:16px;">${r.t.trx}</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Total Saldo Kantong: <b style="color:var(--ink);">${formatRupiah(r.bal)}</b></div>
+      <div class="pocket-bar-track" style="display:flex;">${barSegs}</div>
+    </div>`;
+  }).join("");
+
+  c.innerHTML = `
+    <div class="grid4" style="margin-bottom:20px;">
+      <div class="stat-card"><div class="label">Kas Masuk Hari Ini</div><div class="value">${formatRupiah(totKasHariIni)}</div><div class="sub">${dateLabel(dt)}</div></div>
+      <div class="stat-card c-blue"><div class="label">Transaksi Hari Ini</div><div class="value">${totTrxHariIni}</div><div class="sub">Seluruh unit</div></div>
+      <div class="stat-card c-gold"><div class="label">Total Saldo Kantong</div><div class="value">${formatRupiah(totSaldoSemua)}</div><div class="sub">Semua unit, semua kantong</div></div>
+      <div class="stat-card c-plum"><div class="label">Jumlah Unit Aktif</div><div class="value">${UNITS.length}</div><div class="sub">Unit usaha</div></div>
+    </div>
+    <div class="section-title">Ringkasan per Unit</div>
+    <div class="grid2">${unitCards || '<div class="empty-state">Belum ada unit.</div>'}</div>
+  `;
+}
+
+/* ================= PEMASUKAN ================= */
+const KATEGORI_LAIN = [
+  { key:"bon", label:"Bayar Bon/Piutang" },
+  { key:"orderan", label:"Bayar Orderan" },
+  { key:"jasa", label:"Jasa" },
+  { key:"lainnya", label:"Lainnya" }
+];
+function lainLabel(key){ return (KATEGORI_LAIN.find(k=>k.key===key)||{}).label || key; }
+
+function renderPemasukan(c){
+  c.innerHTML = `
+    <div class="controlbar">
+      <div class="field-inline"><label class="f-label">Tanggal</label><input type="date" id="pmTanggal"></div>
+      <span class="pill unsaved" id="pmStatus">Memuat...</span>
+    </div>
+    <div class="grid2" id="pmGrid"></div>
+    <div class="section-title" style="margin-top:22px;">Ringkasan Hari Ini — Per Unit</div>
+    <div class="tbl-wrap"><table id="pmSummaryTable">
+      <thead><tr><th>Unit</th><th>Tunai</th><th>Transfer</th><th>Pemasukan Lain</th><th>Total Kas Masuk</th><th>Total Transaksi</th></tr></thead>
+      <tbody id="pmSummaryBody"></tbody>
+      <tfoot><tr><td>Total Semua Unit</td><td></td><td></td><td></td><td id="pmGrandKas">Rp 0</td><td id="pmGrandTrx">0</td></tr></tfoot>
+    </table></div>
+    <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">
+      <button class="btn btn-primary" id="pmSimpan">Simpan Catatan Hari Ini</button>
+      <button class="btn btn-ghost" id="pmKosongkan">Kosongkan Form</button>
+    </div>
+  `;
+  const dateInput=document.getElementById("pmTanggal");
+  dateInput.value=pendingPemasukanDate||todayStr();
+  pendingPemasukanDate=null;
+
+  function lainRowHtml(unitKey, item){
+    const opts = KATEGORI_LAIN.map(k=>`<option value="${k.key}" ${item.kategori===k.key?"selected":""}>${k.label}</option>`).join("");
+    return `
+      <div class="lain-row" data-lain-id="${item.id}" data-unit="${unitKey}">
+        <select data-field="kategori">${opts}</select>
+        <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-field="jumlah" value="${item.jumlah?item.jumlah.toLocaleString("id-ID"):""}" placeholder="0"></div>
+        <input type="text" data-field="keterangan" placeholder="Keterangan (opsional)" value="${escapeHtml(item.keterangan||"")}">
+        <button type="button" class="lain-del" data-action="del-lain" title="Hapus">✕</button>
+      </div>`;
+  }
+  function renderLainRows(unitKey, list){
+    const wrap=document.getElementById(`pmLainWrap_${unitKey}`);
+    if(!wrap) return;
+    wrap.innerHTML = list.map(item=>lainRowHtml(unitKey,item)).join("");
+    wrap.querySelectorAll(".lain-row input.money").forEach(inp=>inp.addEventListener("input",e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalc(); markUnsaved(); }));
+    wrap.querySelectorAll(".lain-row select, .lain-row input[data-field=\"keterangan\"]").forEach(inp=>inp.addEventListener("input",()=>{ recalc(); markUnsaved(); }));
+    wrap.querySelectorAll('[data-action="del-lain"]').forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const row=btn.closest(".lain-row");
+        const currentList=readLainRows(unitKey).filter(x=>x.id!==row.getAttribute("data-lain-id"));
+        renderLainRows(unitKey, currentList);
+        recalc(); markUnsaved();
+      });
+    });
+  }
+  function readLainRows(unitKey){
+    return [...document.querySelectorAll(`.lain-row[data-unit="${unitKey}"]`)].map(row=>({
+      id: row.getAttribute("data-lain-id"),
+      kategori: row.querySelector('[data-field="kategori"]').value,
+      jumlah: parseMoneyInput(row.querySelector('[data-field="jumlah"]').value),
+      keterangan: row.querySelector('[data-field="keterangan"]').value.trim()
+    }));
+  }
+
+  function buildGrid(){
+    const grid=document.getElementById("pmGrid");
+    grid.innerHTML="";
+    UNITS.forEach(u=>{
+      const card=document.createElement("div");
+      card.className="card";
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);">
+          <div style="font-weight:700;color:var(--moss-dark);font-size:14.5px;">${escapeHtml(u.label)}</div>
+        </div>
+        <div style="display:flex;gap:16px;padding:10px 16px 0;font-size:12px;color:var(--muted);">
+          <span>Kas hari ini: <b id="pmUnitKas_${u.key}" style="color:var(--ink);">Rp 0</b></span>
+          <span>Transaksi: <b id="pmUnitTrx_${u.key}" style="color:var(--ink);">0</b></span>
+        </div>
+        <div class="unit-breakdown" id="pmUnitBreakdown_${u.key}"></div>
+        <div class="card-pad">
+          <div class="shift-row shift-row-tight">
+            <div class="shift-label">Pagi</div>
+            <div class="field-inline"><label class="f-label">Kas Masuk Tunai</label>
+              <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-unit="${u.key}" data-shift="pagi" data-field="kas" placeholder="0"></div>
+            </div>
+            <div class="field-inline"><label class="f-label">Jml transaksi</label><input type="number" min="0" class="count" data-unit="${u.key}" data-shift="pagi" data-field="trx" placeholder="0"></div>
+          </div>
+          <div class="divider-tight"></div>
+          <div class="shift-row">
+            <div class="shift-label">Sore</div>
+            <div class="field-inline">
+              <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-unit="${u.key}" data-shift="sore" data-field="kas" placeholder="0"></div>
+            </div>
+            <div class="field-inline"><input type="number" min="0" class="count" data-unit="${u.key}" data-shift="sore" data-field="trx" placeholder="0"></div>
+          </div>
+
+          <div class="group-gap"></div>
+          <div class="shift-row shift-row-tight">
+            <div class="shift-label">Pagi</div>
+            <div class="field-inline"><label class="f-label">Transfer Masuk</label>
+              <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-unit="${u.key}" data-shift="pagi" data-field="transferkas" placeholder="0"></div>
+            </div>
+            <div class="field-inline"><label class="f-label">Jml transaksi</label><input type="number" min="0" class="count" data-unit="${u.key}" data-shift="pagi" data-field="transfertrx" placeholder="0"></div>
+          </div>
+          <div class="divider-tight"></div>
+          <div class="shift-row">
+            <div class="shift-label">Sore</div>
+            <div class="field-inline">
+              <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-unit="${u.key}" data-shift="sore" data-field="transferkas" placeholder="0"></div>
+            </div>
+            <div class="field-inline"><input type="number" min="0" class="count" data-unit="${u.key}" data-shift="sore" data-field="transfertrx" placeholder="0"></div>
+          </div>
+
+          <div class="subhead">Pemasukan Lain <span style="font-weight:500;text-transform:none;color:var(--muted);">(bon, orderan, jasa, dll)</span><span class="subhead-line"></span></div>
+          <div id="pmLainWrap_${u.key}"></div>
+          <button type="button" class="add-lain-btn" data-action="add-lain" data-unit="${u.key}">+ Tambah Pemasukan Lain</button>
+        </div>`;
+      grid.appendChild(card);
+    });
+    grid.querySelectorAll("input.money").forEach(inp=>inp.addEventListener("input",e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalc(); markUnsaved(); }));
+    grid.querySelectorAll("input.count").forEach(inp=>inp.addEventListener("input",()=>{ recalc(); markUnsaved(); }));
+    grid.querySelectorAll('[data-action="add-lain"]').forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const unitKey=btn.getAttribute("data-unit");
+        const list=readLainRows(unitKey);
+        list.push({ id:uid(), kategori:"bon", jumlah:0, keterangan:"" });
+        renderLainRows(unitKey, list);
+        markUnsaved();
+      });
+    });
+  }
+
+  function getFormValues(){
+    const r={};
+    UNITS.forEach(u=>{
+      const q=(s,f)=>document.querySelector(`[data-unit="${u.key}"][data-shift="${s}"][data-field="${f}"]`);
+      r[u.key]={
+        kasPagi:parseMoneyInput(q("pagi","kas")?.value), trxPagi:parseInt(q("pagi","trx")?.value||0,10),
+        kasSore:parseMoneyInput(q("sore","kas")?.value), trxSore:parseInt(q("sore","trx")?.value||0,10),
+        transferPagi:parseMoneyInput(q("pagi","transferkas")?.value), transferTrxPagi:parseInt(q("pagi","transfertrx")?.value||0,10),
+        transferSore:parseMoneyInput(q("sore","transferkas")?.value), transferTrxSore:parseInt(q("sore","transfertrx")?.value||0,10),
+        lainLain: readLainRows(u.key)
+      };
+    });
+    return r;
+  }
+  function setFormValues(entry){
+    UNITS.forEach(u=>{
+      const d=(entry&&entry[u.key])||{kasPagi:0,trxPagi:0,kasSore:0,trxSore:0,transferPagi:0,transferTrxPagi:0,transferSore:0,transferTrxSore:0,lainLain:[]};
+      const q=(s,f)=>document.querySelector(`[data-unit="${u.key}"][data-shift="${s}"][data-field="${f}"]`);
+      if(q("pagi","kas")) q("pagi","kas").value=d.kasPagi?d.kasPagi.toLocaleString("id-ID"):"";
+      if(q("pagi","trx")) q("pagi","trx").value=d.trxPagi||"";
+      if(q("sore","kas")) q("sore","kas").value=d.kasSore?d.kasSore.toLocaleString("id-ID"):"";
+      if(q("sore","trx")) q("sore","trx").value=d.trxSore||"";
+      if(q("pagi","transferkas")) q("pagi","transferkas").value=d.transferPagi?d.transferPagi.toLocaleString("id-ID"):"";
+      if(q("pagi","transfertrx")) q("pagi","transfertrx").value=d.transferTrxPagi||"";
+      if(q("sore","transferkas")) q("sore","transferkas").value=d.transferSore?d.transferSore.toLocaleString("id-ID"):"";
+      if(q("sore","transfertrx")) q("sore","transfertrx").value=d.transferTrxSore||"";
+      renderLainRows(u.key, d.lainLain||[]);
+    });
+    recalc();
+  }
+  function recalc(){
+    const values=getFormValues();
+    let gk=0,gt=0,rows="";
+    UNITS.forEach(u=>{
+      const d=values[u.key];
+      const tunai=d.kasPagi+d.kasSore, transfer=d.transferPagi+d.transferSore;
+      const lain=(d.lainLain||[]).reduce((s,x)=>s+(x.jumlah||0),0);
+      const trxTunai=d.trxPagi+d.trxSore, trxTransfer=d.transferTrxPagi+d.transferTrxSore, trxLain=(d.lainLain||[]).length;
+      const kasTotal=tunai+transfer+lain, trxTotal=trxTunai+trxTransfer+trxLain;
+      gk+=kasTotal; gt+=trxTotal;
+      const ek=document.getElementById(`pmUnitKas_${u.key}`), et=document.getElementById(`pmUnitTrx_${u.key}`);
+      if(ek) ek.textContent=formatRupiah(kasTotal); if(et) et.textContent=trxTotal;
+      const bd=document.getElementById(`pmUnitBreakdown_${u.key}`);
+      if(bd) bd.textContent = `Tunai ${formatRupiah(tunai)} · Transfer ${formatRupiah(transfer)} · Lain ${formatRupiah(lain)}`;
+      rows+=`<tr><td>${escapeHtml(u.label)}</td><td>${formatRupiah(tunai)}</td><td>${formatRupiah(transfer)}</td><td>${formatRupiah(lain)}</td><td class="rowtotal">${formatRupiah(kasTotal)}</td><td>${trxTotal}</td></tr>`;
+    });
+    document.getElementById("pmSummaryBody").innerHTML=rows;
+    document.getElementById("pmGrandKas").textContent=formatRupiah(gk);
+    document.getElementById("pmGrandTrx").textContent=gt;
+  }
+  function markUnsaved(){ const p=document.getElementById("pmStatus"); p.className="pill unsaved"; p.textContent="Belum disimpan"; }
+  function markSaved(){ const p=document.getElementById("pmStatus"); p.className="pill saved"; p.textContent="Tersimpan"; }
+  function loadDate(dt){
+    const entry=PEMASUKAN[dt];
+    setFormValues(entry?entry.units:null);
+    if(entry) markSaved(); else { const p=document.getElementById("pmStatus"); p.className="pill unsaved"; p.textContent="Belum ada data"; }
+  }
+
+  buildGrid();
+  loadDate(dateInput.value);
+
+  dateInput.addEventListener("change", ()=>loadDate(dateInput.value));
+  document.getElementById("pmKosongkan").addEventListener("click", async ()=>{
+    if(await customConfirm("Kosongkan semua isian form untuk tanggal ini?")){ setFormValues(null); markUnsaved(); }
+  });
+  document.getElementById("pmSimpan").addEventListener("click", async ()=>{
+    const dt=dateInput.value; if(!dt){ showToast("Pilih tanggal terlebih dahulu"); return; }
+    const units=getFormValues();
+    const withAlloc={};
+    UNITS.forEach(u=>{
+      const d=units[u.key];
+      const lainSum=(d.lainLain||[]).reduce((s,x)=>s+(x.jumlah||0),0);
+      const totalKas=d.kasPagi+d.kasSore+d.transferPagi+d.transferSore+lainSum;
+      withAlloc[u.key]={...d, alokasi:computeAllocation(u.key,totalKas)};
+    });
+    PEMASUKAN[dt]={ units:withAlloc, savedAt:new Date().toISOString() };
+    const ok=await savePemasukan();
+    markSaved();
+    showToast(ok?"Catatan tersimpan":"Tersimpan lokal (sinkron gagal)");
+  });
+}
+
+/* ================= PENGELUARAN ================= */
+function renderPengeluaran(c){
+  const pocketOptions = POCKET_DEFS.map(p=>`<option value="${p.key}">${p.label}</option>`).join("");
+  const unitOptions = UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  c.innerHTML = `
+    <div class="grid2">
+      <div class="card card-pad">
+        <div class="section-title">Catat Pengeluaran</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field-inline"><label class="f-label">Tanggal</label><input type="date" id="pgTanggal"></div>
+          <div class="field-inline"><label class="f-label">Unit</label><select id="pgUnit">${unitOptions}</select></div>
+          <div class="field-inline"><label class="f-label">Kantong Kas</label><select id="pgKantong">${pocketOptions}</select></div>
+          <div style="font-size:12px;color:var(--muted);" id="pgSaldoInfo"></div>
+          <div class="field-inline"><label class="f-label">Jumlah</label>
+            <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" id="pgJumlah" class="money" placeholder="0"></div>
+          </div>
+          <div class="field-inline"><label class="f-label">Keterangan</label><input type="text" id="pgKeterangan" placeholder="mis. Beli kertas A4"></div>
+          <button class="btn btn-primary" id="pgSimpan" style="align-self:flex-start;">Simpan Pengeluaran</button>
+        </div>
+      </div>
+      <div class="card card-pad">
+        <div class="section-title">Saldo Kantong — <span id="pgUnitLabel"></span></div>
+        <div id="pgBalanceList"></div>
+      </div>
+    </div>
+    <div class="section-title" style="margin-top:22px;">Riwayat Pengeluaran</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tanggal</th><th>Unit</th><th>Kantong</th><th>Keterangan</th><th>Jumlah</th><th></th></tr></thead>
+      <tbody id="pgHistBody"></tbody>
+    </table></div>
+  `;
+  document.getElementById("pgTanggal").value=todayStr();
+  document.getElementById("pgJumlah").addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
+
+  function refreshBalancePanel(){
+    const unitKey=document.getElementById("pgUnit").value;
+    document.getElementById("pgUnitLabel").textContent=unitLabel(unitKey);
+    const bal=pocketBalances(unitKey);
+    document.getElementById("pgBalanceList").innerHTML = POCKET_DEFS.map(p=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);">
+        <span style="font-size:13px;display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:3px;background:${p.color};display:inline-block;"></span>${p.label}</span>
+        <b style="font-size:13.5px;">${formatRupiah(bal[p.key])}</b>
+      </div>`).join("");
+    const kantong=document.getElementById("pgKantong").value;
+    document.getElementById("pgSaldoInfo").textContent = `Saldo ${unitLabel(unitKey)} — ${POCKET_DEFS.find(p=>p.key===kantong).label}: ${formatRupiah(bal[kantong])}`;
+  }
+  function renderHist(){
+    const rows = [...PENGELUARAN].sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt.localeCompare(a.createdAt));
+    document.getElementById("pgHistBody").innerHTML = rows.length ? rows.map(ex=>`
+      <tr>
+        <td class="rowdate">${dateLabel(ex.date)}</td>
+        <td>${escapeHtml(unitLabel(ex.unitKey))}</td>
+        <td><span class="sw" style="width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:middle;background:${POCKET_DEFS.find(p=>p.key===ex.kantong)?.color||'#999'};"></span>${escapeHtml(POCKET_DEFS.find(p=>p.key===ex.kantong)?.label||ex.kantong)}</td>
+        <td style="text-align:left;">${escapeHtml(ex.keterangan||"-")}</td>
+        <td class="neg">${formatRupiah(ex.jumlah)}</td>
+        <td><button class="btn btn-danger btn-sm" data-del="${ex.id}">Hapus</button></td>
+      </tr>`).join("") : `<tr><td colspan="6" class="empty-state">Belum ada pengeluaran tercatat.</td></tr>`;
+    document.querySelectorAll("[data-del]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        if(await customConfirm("Hapus catatan pengeluaran ini?", "Ya, Hapus")){
+          PENGELUARAN=PENGELUARAN.filter(x=>x.id!==btn.getAttribute("data-del"));
+          await savePengeluaran();
+          refreshBalancePanel(); renderHist(); showToast("Pengeluaran dihapus");
+        }
+      });
+    });
+  }
+  document.getElementById("pgUnit").addEventListener("change", refreshBalancePanel);
+  document.getElementById("pgKantong").addEventListener("change", refreshBalancePanel);
+  document.getElementById("pgSimpan").addEventListener("click", async ()=>{
+    const date=document.getElementById("pgTanggal").value;
+    const unitKey=document.getElementById("pgUnit").value;
+    const kantong=document.getElementById("pgKantong").value;
+    const jumlah=parseMoneyInput(document.getElementById("pgJumlah").value);
+    const keterangan=document.getElementById("pgKeterangan").value.trim();
+    if(!date){ showToast("Pilih tanggal"); return; }
+    if(!jumlah){ showToast("Isi jumlah pengeluaran"); return; }
+    const bal=pocketBalances(unitKey)[kantong];
+    if(jumlah>bal){
+      const lanjut = await customConfirm(`Saldo ${POCKET_DEFS.find(p=>p.key===kantong).label} untuk ${unitLabel(unitKey)} hanya ${formatRupiah(bal)}. Tetap simpan pengeluaran ini?`, "Ya, Tetap Simpan");
+      if(!lanjut) return;
+    }
+    PENGELUARAN.push({ id:uid(), date, unitKey, kantong, jumlah, keterangan, createdAt:new Date().toISOString() });
+    const ok=await savePengeluaran();
+    document.getElementById("pgJumlah").value=""; document.getElementById("pgKeterangan").value="";
+    refreshBalancePanel(); renderHist();
+    showToast(ok?"Pengeluaran tersimpan":"Tersimpan lokal (sinkron gagal)");
+  });
+
+  refreshBalancePanel(); renderHist();
+}
+
+/* ================= KANTONG KAS ================= */
+function renderKantong(c){
+  const unitOptions = `<option value="all">Semua Unit</option>` + UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  c.innerHTML = `
+    <div class="legend-row">
+      ${POCKET_DEFS.map(p=>`<span class="legend-chip"><span class="sw" style="background:${p.color};"></span>${p.label}</span>`).join("")}
+      <button class="btn btn-ghost btn-sm" id="kkGotoAlokasi" style="margin-left:auto;height:29px;">Atur Persentase Alokasi →</button>
+    </div>
+    <div class="section-title-row">
+      <div class="section-title" style="margin:0;">Total Kas per Kantong —</div>
+      <select id="kkFilterUnit" class="inline-select">${unitOptions}</select>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Kantong</th>${UNITS.map(u=>`<th data-col="${u.key}">${escapeHtml(u.label)}</th>`).join("")}<th data-col="total">Total Semua Unit</th></tr></thead>
+      <tbody id="kkPocketTotalsBody"></tbody>
+      <tfoot><tr id="kkPocketTotalsFoot"></tr></tfoot>
+    </table></div>
+  `;
+
+  function renderPocketTotals(){
+    const selected = document.getElementById("kkFilterUnit").value;
+    const hl = (colKey)=> (selected!=="all" && selected===colKey) ? ' class="col-highlight"' : '';
+    const allBal = {}; UNITS.forEach(u=>{ allBal[u.key]=pocketBalances(u.key); });
+    const rows = POCKET_DEFS.map(p=>{
+      let rowTotal=0;
+      const cells = UNITS.map(u=>{ const v=allBal[u.key][p.key]; rowTotal+=v; return `<td${hl(u.key)}>${formatRupiah(v)}</td>`; }).join("");
+      return `<tr><td style="display:flex;align-items:center;gap:8px;border-left:3px solid ${p.color};padding-left:9px;"><span class="sw" style="width:9px;height:9px;border-radius:3px;background:${p.color};display:inline-block;"></span>${p.label}</td>${cells}<td class="rowtotal pos">${formatRupiah(rowTotal)}</td></tr>`;
+    }).join("");
+    document.getElementById("kkPocketTotalsBody").innerHTML = rows;
+    let grandTotal=0;
+    const footCells = UNITS.map(u=>{ const t=POCKET_DEFS.reduce((s,p)=>s+allBal[u.key][p.key],0); grandTotal+=t; return `<td${hl(u.key)}>${formatRupiah(t)}</td>`; }).join("");
+    document.getElementById("kkPocketTotalsFoot").innerHTML = `<td>Total Semua Kantong</td>${footCells}<td>${formatRupiah(grandTotal)}</td>`;
+    document.querySelectorAll("thead [data-col]").forEach(th=>{
+      const col=th.getAttribute("data-col");
+      th.classList.toggle("col-highlight", selected!=="all" && selected===col);
+    });
+  }
+
+  document.getElementById("kkFilterUnit").addEventListener("change", renderPocketTotals);
+  document.getElementById("kkGotoAlokasi").addEventListener("click", ()=>navigateTo("alokasi"));
+
+  renderPocketTotals();
+}
+
+/* ================= PENGATURAN ALOKASI ================= */
+function renderAlokasi(c){
+  const unitOptions = UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  c.innerHTML = `
+    <div class="controlbar">
+      <div class="field-inline"><label class="f-label">Unit</label><select id="akUnit">${unitOptions}</select></div>
+    </div>
+    <div class="card card-pad">
+      <div class="section-title">Persentase Alokasi Otomatis</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Persentase berlaku saat kas masuk baru disimpan. Perubahan di sini <b>tidak mengubah</b> alokasi yang sudah tercatat sebelumnya — cocok untuk penyesuaian berkala tiap 6 bulan atau tiap tahun.</div>
+      <div id="akPctForm"></div>
+      <div class="pct-sum-note" id="akPctSum"></div>
+      <button class="btn btn-primary" id="akPctSave" style="margin-top:12px;">Simpan Persentase</button>
+    </div>
+
+    <div class="section-title" style="margin-top:24px;">Riwayat Perubahan Alokasi</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tanggal Ubah</th><th>Unit</th><th>Stok</th><th>Operasional</th><th>Investasi</th><th>Dana Aman</th><th>Profit</th></tr></thead>
+      <tbody id="akHistBody"></tbody>
+    </table></div>
+  `;
+
+  function renderPctForm(){
+    const unitKey=document.getElementById("akUnit").value;
+    const cfg=getUnitPct(unitKey);
+    document.getElementById("akPctForm").innerHTML = POCKET_DEFS.map(p=>`
+      <div class="pct-row">
+        <div class="pname"><span class="sw" style="background:${p.color};"></span>${p.label}</div>
+        <div class="pct-input-wrap"><input type="number" min="0" max="100" step="0.5" data-pct="${p.key}" value="${cfg[p.key]}"><span>%</span></div>
+      </div>`).join("");
+    updatePctSum();
+    document.querySelectorAll("[data-pct]").forEach(inp=>inp.addEventListener("input", updatePctSum));
+  }
+  function currentPctValues(){
+    const r={}; document.querySelectorAll("[data-pct]").forEach(inp=>{ r[inp.getAttribute("data-pct")]=parseFloat(inp.value)||0; }); return r;
+  }
+  function updatePctSum(){
+    const vals=currentPctValues(); const sum=Object.values(vals).reduce((a,b)=>a+b,0);
+    const el=document.getElementById("akPctSum");
+    el.textContent = `Total: ${sum.toFixed(1)}% ${sum===100?"— sesuai (100%)":"— harus tepat 100% untuk bisa disimpan"}`;
+    el.className = "pct-sum-note " + (sum===100 ? "ok" : "bad");
+  }
+  function renderPctHistory(){
+    const unitKey=document.getElementById("akUnit").value;
+    const rows=[...PCT_HISTORY].filter(h=>h.unitKey===unitKey).sort((a,b)=>b.savedAt.localeCompare(a.savedAt));
+    document.getElementById("akHistBody").innerHTML = rows.length ? rows.map(h=>`
+      <tr><td class="rowdate">${new Date(h.savedAt).toLocaleDateString("id-ID",{day:"2-digit",month:"short",year:"numeric"})}</td>
+      <td>${escapeHtml(unitLabel(h.unitKey))}</td>
+      <td>${h.config.stok}%</td><td>${h.config.operasional}%</td><td>${h.config.investasi}%</td><td>${h.config.dana_aman}%</td><td>${h.config.profit}%</td></tr>
+    `).join("") : `<tr><td colspan="7" class="empty-state">Belum ada perubahan alokasi untuk unit ini.</td></tr>`;
+  }
+
+  document.getElementById("akUnit").addEventListener("change", ()=>{ renderPctForm(); renderPctHistory(); });
+  document.getElementById("akPctSave").addEventListener("click", async ()=>{
+    const unitKey=document.getElementById("akUnit").value;
+    const vals=currentPctValues(); const sum=Object.values(vals).reduce((a,b)=>a+b,0);
+    if(sum!==100){ showToast("Total persentase harus tepat 100%"); return; }
+    const prev=getUnitPct(unitKey);
+    const changed=POCKET_DEFS.some(p=>(prev[p.key]||0)!==(vals[p.key]||0));
+    PCT_CONFIG[unitKey]=vals;
+    const ok1=await saveUnitsAndPct();
+    let ok2=true;
+    if(changed){
+      PCT_HISTORY.push({ id:uid(), unitKey, config:vals, savedAt:new Date().toISOString() });
+      ok2=await savePctHistory();
+    }
+    renderPctHistory();
+    if(!changed){ showToast("Tidak ada perubahan nilai"); }
+    else { showToast((ok1&&ok2)?"Persentase alokasi disimpan":"Tersimpan lokal (sinkron gagal)"); }
+  });
+
+  renderPctForm(); renderPctHistory();
+}
+
+/* ================= RIWAYAT HARIAN ================= */
+function renderRiwayat(c){
+  const dates = allDates().sort((a,b)=>b.localeCompare(a));
+  const dateOptions = dates.length ? dates.map(dt=>`<option value="${dt}">${dateLabel(dt)}</option>`).join("") : `<option value="">Belum ada data</option>`;
+  const unitOptions = `<option value="">Semua Unit</option>` + UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  const kantongOptions = `<option value="">Semua Kantong</option>` + POCKET_DEFS.map(p=>`<option value="${p.key}">${p.label}</option>`).join("");
+  c.innerHTML = `
+    <div class="controlbar">
+      <div class="field-inline"><label class="f-label">Tanggal</label><select id="rwTanggal" ${dates.length?"":"disabled"}>${dateOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Sorot Unit</label><select id="rwUnit">${unitOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Sorot Kantong</label><select id="rwKantong">${kantongOptions}</select></div>
+    </div>
+    <div class="grid3" style="margin-bottom:18px;">
+      <div class="stat-card"><div class="label">Total Kas Masuk</div><div class="value" id="rwSumKas">Rp 0</div><div class="sub" id="rwSumDate"></div></div>
+      <div class="stat-card c-blue"><div class="label">Total Transaksi</div><div class="value" id="rwSumTrx">0</div><div class="sub">Tanggal terpilih</div></div>
+      <div class="stat-card c-gold"><div class="label">&nbsp;</div><div class="value"><button class="btn btn-ghost btn-sm" id="rwOpenDate">Buka di Kas Masuk →</button></div><div class="sub">Edit catatan tanggal ini</div></div>
+    </div>
+    <div class="section-title">Alokasi Kas Masuk per Kantong — per Unit</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Kantong</th>${UNITS.map(u=>`<th data-col="${u.key}">${escapeHtml(u.label)}</th>`).join("")}<th>Total</th></tr></thead>
+      <tbody id="rwBody"></tbody>
+      <tfoot><tr id="rwFoot"></tr></tfoot>
+    </table></div>
+  `;
+  if(!dates.length){
+    document.getElementById("rwBody").innerHTML = `<tr><td colspan="${UNITS.length+2}" class="empty-state">Belum ada catatan kas masuk.</td></tr>`;
+    return;
+  }
+  function render(){
+    const dt=document.getElementById("rwTanggal").value;
+    const highlightUnit=document.getElementById("rwUnit").value;
+    const highlightKantong=document.getElementById("rwKantong").value;
+    const valuesByUnit={}; UNITS.forEach(u=>{ valuesByUnit[u.key]=unitPocketAllocForDate(dt,u.key); });
+    renderPocketUnitTable("rwBody","rwFoot",valuesByUnit,highlightUnit,highlightKantong);
+    document.querySelectorAll("thead [data-col]").forEach(th=>{
+      th.classList.toggle("col-highlight", highlightUnit===th.getAttribute("data-col"));
+    });
+    let sumKas=0,sumTrx=0;
+    UNITS.forEach(u=>{ const t=unitDayTotals(dt,u.key); sumKas+=t.kas; sumTrx+=t.trx; });
+    document.getElementById("rwSumKas").textContent=formatRupiah(sumKas);
+    document.getElementById("rwSumTrx").textContent=sumTrx;
+    document.getElementById("rwSumDate").textContent=dateLabel(dt);
+  }
+  document.getElementById("rwTanggal").addEventListener("change", render);
+  document.getElementById("rwUnit").addEventListener("change", render);
+  document.getElementById("rwKantong").addEventListener("change", render);
+  document.getElementById("rwOpenDate").addEventListener("click", ()=>{
+    pendingPemasukanDate=document.getElementById("rwTanggal").value;
+    navigateTo("pemasukan");
+  });
+  render();
+}
+
+/* ================= REKAP BULANAN ================= */
+function renderRekapBulanan(c){
+  const years = yearsPresent();
+  const yearOptions = years.map(y=>`<option value="${y}">${y}</option>`).join("");
+  const monthOptions = MONTH_NAMES.map((mn,i)=>`<option value="${i+1}">${mn}</option>`).join("");
+  const unitOptions = `<option value="">Semua Unit</option>` + UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  const kantongOptions = `<option value="">Semua Kantong</option>` + POCKET_DEFS.map(p=>`<option value="${p.key}">${p.label}</option>`).join("");
+  c.innerHTML = `
+    <div class="controlbar">
+      <div class="field-inline"><label class="f-label">Tahun</label><select id="rbTahun">${yearOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Bulan</label><select id="rbBulan">${monthOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Sorot Unit</label><select id="rbUnit">${unitOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Sorot Kantong</label><select id="rbKantong">${kantongOptions}</select></div>
+    </div>
+    <div class="grid2" style="margin-bottom:18px;">
+      <div class="stat-card"><div class="label">Total Kas Masuk</div><div class="value" id="rbSumKas">Rp 0</div><div class="sub" id="rbSumLabel"></div></div>
+      <div class="stat-card c-clay"><div class="label">Total Pengeluaran</div><div class="value" id="rbSumExp">Rp 0</div><div class="sub">Seluruh unit & kantong</div></div>
+    </div>
+    <div class="section-title">Alokasi Kas Masuk per Kantong — per Unit</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Kantong</th>${UNITS.map(u=>`<th data-col="${u.key}">${escapeHtml(u.label)}</th>`).join("")}<th>Total</th></tr></thead>
+      <tbody id="rbBody"></tbody>
+      <tfoot><tr id="rbFoot"></tr></tfoot>
+    </table></div>
+  `;
+  document.getElementById("rbBulan").value = String(new Date().getMonth()+1);
+  function render(){
+    const y=parseInt(document.getElementById("rbTahun").value,10);
+    const m=parseInt(document.getElementById("rbBulan").value,10);
+    const highlightUnit=document.getElementById("rbUnit").value;
+    const highlightKantong=document.getElementById("rbKantong").value;
+    const {from,to}=monthRange(y,m);
+    const valuesByUnit={}; UNITS.forEach(u=>{ valuesByUnit[u.key]=unitPocketAllocForRange(u.key,from,to); });
+    renderPocketUnitTable("rbBody","rbFoot",valuesByUnit,highlightUnit,highlightKantong);
+    document.querySelectorAll("thead [data-col]").forEach(th=>{
+      th.classList.toggle("col-highlight", highlightUnit===th.getAttribute("data-col"));
+    });
+    let sumKas=0,sumExp=0;
+    UNITS.forEach(u=>{ sumKas+=unitIncomeInRange(u.key,from,to).kas; sumExp+=unitExpenseInRange(u.key,from,to).total; });
+    document.getElementById("rbSumKas").textContent=formatRupiah(sumKas);
+    document.getElementById("rbSumExp").textContent=formatRupiah(sumExp);
+    document.getElementById("rbSumLabel").textContent=`${MONTH_NAMES[m-1]} ${y}`;
+  }
+  document.getElementById("rbTahun").addEventListener("change", render);
+  document.getElementById("rbBulan").addEventListener("change", render);
+  document.getElementById("rbUnit").addEventListener("change", render);
+  document.getElementById("rbKantong").addEventListener("change", render);
+  render();
+}
+
+/* ================= REKAP TAHUNAN ================= */
+function computeMonthlyPocketMatrix(year, unitKey){
+  const matrix=[];
+  for(let m=1;m<=12;m++){
+    const {from,to}=monthRange(year,m);
+    let vals;
+    if(unitKey){ vals=unitPocketAllocForRange(unitKey,from,to); }
+    else{
+      vals={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+      UNITS.forEach(u=>{ const a=unitPocketAllocForRange(u.key,from,to); POCKET_DEFS.forEach(p=>{ vals[p.key]+=a[p.key]; }); });
+    }
+    matrix.push(vals);
+  }
+  return matrix;
+}
+function renderMonthPocketTable(bodyId, footId, year, unitKey, highlightKantong){
+  const matrix = computeMonthlyPocketMatrix(year, unitKey);
+  const rows = matrix.map((vals,idx)=>{
+    let rowTotal=0;
+    const cells = POCKET_DEFS.map(p=>{
+      const v=vals[p.key]||0; rowTotal+=v;
+      const cls = highlightKantong===p.key ? ' class="col-highlight"' : '';
+      return `<td${cls}>${formatRupiah(v)}</td>`;
+    }).join("");
+    return `<tr><td class="rowdate">${MONTH_NAMES[idx]}</td>${cells}<td class="rowtotal pos">${formatRupiah(rowTotal)}</td></tr>`;
+  }).join("");
+  document.getElementById(bodyId).innerHTML = rows;
+  let grand=0;
+  const footCells = POCKET_DEFS.map(p=>{
+    const s = matrix.reduce((sum,v)=>sum+(v[p.key]||0),0);
+    grand+=s;
+    const cls = highlightKantong===p.key ? ' class="col-highlight"' : '';
+    return `<td${cls}>${formatRupiah(s)}</td>`;
+  }).join("");
+  document.getElementById(footId).innerHTML = `<td>Total Tahun</td>${footCells}<td>${formatRupiah(grand)}</td>`;
+}
+function renderRekapTahunan(c){
+  const years=yearsPresent();
+  const yearOptions = years.map(y=>`<option value="${y}">${y}</option>`).join("");
+  const unitOptions = `<option value="">Semua Unit</option>` + UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  const kantongOptions = `<option value="">Semua Kantong</option>` + POCKET_DEFS.map(p=>`<option value="${p.key}">${p.label}</option>`).join("");
+  c.innerHTML = `
+    <div class="controlbar">
+      <div class="field-inline"><label class="f-label">Tahun</label><select id="rtTahun">${yearOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Unit</label><select id="rtUnit">${unitOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Sorot Kantong</label><select id="rtKantong">${kantongOptions}</select></div>
+    </div>
+    <div class="grid2" style="margin-bottom:18px;">
+      <div class="stat-card"><div class="label">Total Kas Masuk Tahun Ini</div><div class="value" id="rtSumKas">Rp 0</div><div class="sub" id="rtSumYear"></div></div>
+      <div class="stat-card c-clay"><div class="label">Total Pengeluaran Tahun Ini</div><div class="value" id="rtSumExp">Rp 0</div><div class="sub" id="rtSumUnitLabel"></div></div>
+    </div>
+    <div class="section-title">Alokasi Kas Masuk per Bulan — per Kantong</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Bulan</th>${POCKET_DEFS.map(p=>`<th data-col="${p.key}">${p.label}</th>`).join("")}<th>Total</th></tr></thead>
+      <tbody id="rtBody"></tbody>
+      <tfoot><tr id="rtFoot"></tr></tfoot>
+    </table></div>
+  `;
+  function render(){
+    const y=parseInt(document.getElementById("rtTahun").value,10);
+    const unitKey=document.getElementById("rtUnit").value;
+    const highlightKantong=document.getElementById("rtKantong").value;
+    renderMonthPocketTable("rtBody","rtFoot",y,unitKey,highlightKantong);
+    document.querySelectorAll("thead [data-col]").forEach(th=>{
+      th.classList.toggle("col-highlight", highlightKantong===th.getAttribute("data-col"));
+    });
+    const from=`${y}-01-01`, to=`${y}-12-31`;
+    let sumKas=0,sumExp=0;
+    if(unitKey){ sumKas=unitIncomeInRange(unitKey,from,to).kas; sumExp=unitExpenseInRange(unitKey,from,to).total; }
+    else{ UNITS.forEach(u=>{ sumKas+=unitIncomeInRange(u.key,from,to).kas; sumExp+=unitExpenseInRange(u.key,from,to).total; }); }
+    document.getElementById("rtSumKas").textContent=formatRupiah(sumKas);
+    document.getElementById("rtSumExp").textContent=formatRupiah(sumExp);
+    document.getElementById("rtSumYear").textContent=`Tahun ${y}`;
+    document.getElementById("rtSumUnitLabel").textContent = unitKey ? unitLabel(unitKey) : "Semua unit";
+  }
+  document.getElementById("rtTahun").addEventListener("change", render);
+  document.getElementById("rtUnit").addEventListener("change", render);
+  document.getElementById("rtKantong").addEventListener("change", render);
+  render();
+}
+
+/* ================= ANALISIS ================= */
+function renderAnalisis(c){
+  const unitOptions = `<option value="">Semua Unit</option>` + UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  c.innerHTML = `
+    <div class="controlbar">
+      <div class="field-inline"><label class="f-label">Unit</label><select id="anUnit">${unitOptions}</select></div>
+    </div>
+    <div class="section-title">Saldo Kantong per Unit</div>
+    <div class="tbl-wrap" style="margin-bottom:22px;"><table>
+      <thead><tr><th>Kantong</th>${UNITS.map(u=>`<th data-col="${u.key}">${escapeHtml(u.label)}</th>`).join("")}<th>Total</th></tr></thead>
+      <tbody id="anBalanceBody"></tbody>
+      <tfoot><tr id="anBalanceFoot"></tr></tfoot>
+    </table></div>
+    <div class="grid2" style="margin-bottom:22px;">
+      <div class="stat-card"><div class="label">Kas Masuk Bulan Ini</div><div class="value" id="anBulanIniKas">Rp 0</div><div class="sub" id="anBulanIniVs"></div></div>
+      <div class="stat-card c-clay"><div class="label">Pengeluaran Bulan Ini</div><div class="value" id="anBulanIniPeng">Rp 0</div><div class="sub">Dari seluruh kantong</div></div>
+    </div>
+    <div class="card card-pad">
+      <div class="section-title">Tren Kas Masuk — 6 Bulan Terakhir</div>
+      <div class="bar-chart" id="anBarChart"></div>
+    </div>
+    <div class="card card-pad" style="margin-top:16px;">
+      <div class="section-title">Proporsi Saldo Kantong<span id="anProporsiLabel" style="font-weight:500;text-transform:none;color:var(--muted);"></span></div>
+      <div id="anProporsi"></div>
+    </div>
+  `;
+  function aggregateBalances(){
+    const bal={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+    UNITS.forEach(u=>{ const b=pocketBalances(u.key); POCKET_DEFS.forEach(p=>{ bal[p.key]+=b[p.key]; }); });
+    return bal;
+  }
+  function aggregateIncomeInRange(from,to){
+    let kas=0,trx=0; UNITS.forEach(u=>{ const i=unitIncomeInRange(u.key,from,to); kas+=i.kas; trx+=i.trx; }); return {kas,trx};
+  }
+  function aggregateExpenseInRange(from,to){
+    let total=0; UNITS.forEach(u=>{ total+=unitExpenseInRange(u.key,from,to).total; }); return {total};
+  }
+  function render(){
+    const unitKey=document.getElementById("anUnit").value;
+
+    const valuesByUnit={}; UNITS.forEach(u=>{ valuesByUnit[u.key]=pocketBalances(u.key); });
+    renderPocketUnitTable("anBalanceBody","anBalanceFoot",valuesByUnit,unitKey,null);
+    document.querySelectorAll("thead [data-col]").forEach(th=>{
+      th.classList.toggle("col-highlight", unitKey===th.getAttribute("data-col"));
+    });
+
+    const bal = unitKey ? pocketBalances(unitKey) : aggregateBalances();
+    const total = POCKET_DEFS.reduce((s,p)=>s+bal[p.key],0);
+    document.getElementById("anProporsiLabel").textContent = unitKey ? ` — ${unitLabel(unitKey)}` : " — Semua Unit";
+
+    const now=new Date(); const y=now.getFullYear(), m=now.getMonth()+1;
+    const {from:curFrom,to:curTo}=monthRange(y,m);
+    const curInc = unitKey ? unitIncomeInRange(unitKey,curFrom,curTo) : aggregateIncomeInRange(curFrom,curTo);
+    const curExp = unitKey ? unitExpenseInRange(unitKey,curFrom,curTo) : aggregateExpenseInRange(curFrom,curTo);
+    let py=y, pm=m-1; if(pm===0){pm=12;py=y-1;}
+    const {from:prevFrom,to:prevTo}=monthRange(py,pm);
+    const prevInc = unitKey ? unitIncomeInRange(unitKey,prevFrom,prevTo) : aggregateIncomeInRange(prevFrom,prevTo);
+    const diff = prevInc.kas>0 ? ((curInc.kas-prevInc.kas)/prevInc.kas*100) : (curInc.kas>0?100:0);
+    document.getElementById("anBulanIniKas").textContent=formatRupiah(curInc.kas);
+    document.getElementById("anBulanIniVs").textContent = `${diff>=0?"▲":"▼"} ${Math.abs(diff).toFixed(1)}% dari bulan lalu`;
+    document.getElementById("anBulanIniPeng").textContent=formatRupiah(curExp.total);
+
+    // 6-month trend
+    let months=[]; let ty=y, tm=m;
+    for(let i=0;i<6;i++){ months.unshift({y:ty,m:tm}); tm--; if(tm===0){tm=12;ty--;} }
+    const vals = months.map(mo=>{ const r=monthRange(mo.y,mo.m); return unitKey ? unitIncomeInRange(unitKey,r.from,r.to).kas : aggregateIncomeInRange(r.from,r.to).kas; });
+    const maxVal = Math.max(...vals,1);
+    document.getElementById("anBarChart").innerHTML = months.map((mo,i)=>{
+      const h = Math.max(4, Math.round(vals[i]/maxVal*120));
+      return `<div class="bcol"><div class="bval">${vals[i]>=1000000?(vals[i]/1000000).toFixed(1)+"jt":vals[i].toLocaleString("id-ID")}</div><div class="bbar" style="height:${h}px;"></div><div class="blabel">${MONTH_NAMES[mo.m-1].slice(0,3)}</div></div>`;
+    }).join("");
+
+    document.getElementById("anProporsi").innerHTML = POCKET_DEFS.map(p=>{
+      const pct = total>0 ? Math.max(0,bal[p.key]/total*100) : 0;
+      return `<div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;"><span>${p.label}</span><b>${pct.toFixed(1)}%</b></div>
+        <div class="pocket-bar-track"><div class="pocket-bar-fill" style="width:${pct}%;background:${p.color};"></div></div>
+      </div>`;
+    }).join("");
+  }
+  document.getElementById("anUnit").addEventListener("change", render);
+  render();
+}
+
+/* ================= PENGATURAN (UNIT) ================= */
+function renderPengaturan(c){
+  c.innerHTML = `
+    <div class="section-title">Verifikasi Data Tersimpan</div>
+    <div class="card card-pad" style="margin-bottom:28px;">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">Ambil ulang data langsung dari penyimpanan cloud (bukan dari yang sedang tampil di layar), lalu bandingkan dengan yang ada sekarang. Berguna untuk memastikan tidak ada data yang "kelihatannya tersimpan" tapi sebenarnya gagal.</div>
+      <button class="btn btn-primary" id="ptVerify">Cek Sekarang</button>
+      <div id="ptVerifyResult" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="section-title">Kelola Unit Usaha</div>
+    <div class="grid2" id="ptGrid"></div>
+    <div style="font-size:12px;color:var(--muted);margin-top:14px;">Mengganti nama unit tidak memengaruhi data historis. Menghapus unit hanya menyembunyikannya dari form input — riwayat & saldo kantong tetap tersimpan.</div>
+
+    <div class="section-title" style="margin-top:28px;">Impor Data dari Excel</div>
+    <div class="card card-pad">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">Cocok untuk memasukkan data lama sekaligus banyak — satu baris per tanggal, jadi bisa isi satu bulan penuh (28-31 hari) dalam satu file. Unduh templatenya, isi di Excel/Google Sheets, lalu unggah lagi di sini.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+        <div class="field-inline"><label class="f-label">Tahun</label><select id="ptTplYear" style="width:90px;"></select></div>
+        <div class="field-inline"><label class="f-label">Bulan</label><select id="ptTplMonth" style="width:130px;"></select></div>
+        <button class="btn btn-ghost" id="ptTemplate" style="align-self:flex-end;">Unduh Template Bulan Ini</button>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+        <label class="btn btn-primary" style="cursor:pointer;margin:0;">Impor dari Excel
+          <input type="file" id="ptImportExcel" accept=".xlsx,.xls,.csv" style="display:none;">
+        </label>
+      </div>
+      <div id="ptExcelResult" style="font-size:12.5px;color:var(--muted);"></div>
+    </div>
+
+    <div class="section-title" style="margin-top:28px;">Ambil Data Mentah (Database Asli)</div>
+    <div class="card card-pad">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">File ini persis isi database yang tersimpan sekarang, apa adanya — bukan tampilan yang dipercantik. Pakai "Ekspor ke Excel" untuk lihat/olah datanya dalam bentuk tabel (bisa dibuka di Excel atau diunggah ke Google Sheets), atau "Database Mentah (JSON)" untuk cadangan lengkap yang bisa diimpor lagi ke aplikasi ini di perangkat lain.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-primary" id="ptExportExcel">Ekspor ke Excel</button>
+        <button class="btn btn-ghost" id="ptExport">Unduh Database Mentah (JSON)</button>
+        <label class="btn btn-ghost" style="cursor:pointer;margin:0;">Impor dari Cadangan
+          <input type="file" id="ptImportFile" accept="application/json" style="display:none;">
+        </label>
+        <span id="ptSyncStatus" style="font-size:12px;color:var(--muted);"></span>
+      </div>
+    </div>
+  `;
+  document.getElementById("ptSyncStatus").textContent = storageAvailable ? "Sinkronisasi cloud aktif" : "Sinkronisasi cloud tidak tersedia di tampilan ini — data hanya tersimpan sementara di sesi ini";
+
+  document.getElementById("ptVerify").addEventListener("click", async ()=>{
+    const btn=document.getElementById("ptVerify");
+    const resultBox=document.getElementById("ptVerifyResult");
+    btn.disabled=true; btn.textContent="Memeriksa...";
+    resultBox.innerHTML="";
+
+    const [cu,cp,cph,cpm,cpg] = await Promise.all([
+      storageGet(K_UNITS,null), storageGet(K_PCT,null), storageGet(K_PCT_HIST,[]),
+      storageGet(K_PEMASUKAN,{}), storageGet(K_PENGELUARAN,[])
+    ]);
+
+    btn.disabled=false; btn.textContent="Cek Sekarang";
+
+    if(!storageAvailable){
+      resultBox.innerHTML = `<div class="pct-sum-note bad">Penyimpanan cloud tidak tersedia di tampilan ini — tidak bisa diverifikasi. Gunakan Cadangan (JSON) atau Excel untuk memindahkan data secara manual.</div>`;
+      return;
+    }
+
+    const cloudDates = Object.keys(cpm||{});
+    const screenDates = Object.keys(PEMASUKAN);
+    const missingInCloud = screenDates.filter(d=>!cloudDates.includes(d));
+    const extraInCloud = cloudDates.filter(d=>!screenDates.includes(d));
+    const cloudPengCount = (cpg||[]).length;
+    const screenPengCount = PENGELUARAN.length;
+    const cloudUnitCount = (cu||[]).length;
+
+    const allMatch = missingInCloud.length===0 && extraInCloud.length===0 && cloudPengCount===screenPengCount && cloudUnitCount===UNITS.length;
+
+    let html = `<div class="grid3" style="margin-bottom:12px;">
+      <div class="stat-card"><div class="label">Hari Kas Masuk di Cloud</div><div class="value">${cloudDates.length}</div><div class="sub">${cloudDates.length?dateLabel(cloudDates.sort()[0])+" s/d "+dateLabel(cloudDates.sort().slice(-1)[0]):"belum ada"}</div></div>
+      <div class="stat-card"><div class="label">Pengeluaran di Cloud</div><div class="value">${cloudPengCount}</div><div class="sub">catatan</div></div>
+      <div class="stat-card"><div class="label">Unit di Cloud</div><div class="value">${cloudUnitCount}</div><div class="sub">unit usaha</div></div>
+    </div>`;
+
+    if(allMatch){
+      html += `<div class="pct-sum-note ok">✓ Cocok — semua data yang tampil di layar ini sudah tersimpan di cloud, verifikasi pukul ${new Date().toLocaleTimeString("id-ID")}.</div>`;
+    } else {
+      html += `<div class="pct-sum-note bad">⚠ Ada perbedaan antara layar ini dan cloud:</div><ul style="font-size:12.5px;color:var(--ink);margin:8px 0 0;padding-left:20px;">`;
+      if(missingInCloud.length) html += `<li>${missingInCloud.length} tanggal Kas Masuk di layar ini <b>belum ada</b> di cloud: ${missingInCloud.map(dateLabel).join(", ")}</li>`;
+      if(extraInCloud.length) html += `<li>${extraInCloud.length} tanggal Kas Masuk ada di cloud tapi <b>belum tampil</b> di layar ini (coba muat ulang halaman): ${extraInCloud.map(dateLabel).join(", ")}</li>`;
+      if(cloudPengCount!==screenPengCount) html += `<li>Jumlah catatan Pengeluaran beda — layar: ${screenPengCount}, cloud: ${cloudPengCount}</li>`;
+      if(cloudUnitCount!==UNITS.length) html += `<li>Jumlah unit beda — layar: ${UNITS.length}, cloud: ${cloudUnitCount}</li>`;
+      html += `</ul><div style="font-size:12px;color:var(--muted);margin-top:8px;">Kalau ada yang "belum ada di cloud", coba buka halaman terkait dan simpan ulang. Kalau terus berulang, pakai Cadangan (JSON) di bawah sebagai jalan aman.</div>`;
+    }
+    resultBox.innerHTML = html;
+  });
+
+  const FIELD_SUFFIXES = ["Pagi","Sore","Transfer Pagi","Transfer Sore","Lain"];
+  const now = new Date();
+  const yearSel=document.getElementById("ptTplYear"), monthSel=document.getElementById("ptTplMonth");
+  const yrs = yearsPresent(); const curYr=String(now.getFullYear());
+  if(!yrs.includes(curYr)) yrs.unshift(curYr);
+  yearSel.innerHTML = yrs.sort((a,b)=>b.localeCompare(a)).map(y=>`<option value="${y}">${y}</option>`).join("");
+  yearSel.value = curYr;
+  monthSel.innerHTML = MONTH_NAMES.map((mn,i)=>`<option value="${i+1}">${mn}</option>`).join("");
+  monthSel.value = String(now.getMonth()+1);
+
+  function unitCol(label, suffix){ return `${label} - ${suffix}`; }
+
+  document.getElementById("ptTemplate").addEventListener("click", ()=>{
+    const y=parseInt(yearSel.value,10), m=parseInt(monthSel.value,10);
+    const daysInMonth = new Date(y,m,0).getDate();
+    const header = ["Tanggal"];
+    UNITS.forEach(u=>{ FIELD_SUFFIXES.forEach(s=>header.push(unitCol(u.label,s))); });
+    const rows=[header];
+    for(let d=1; d<=daysInMonth; d++){
+      const dt = `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      const row=[dt];
+      UNITS.forEach(()=>{ FIELD_SUFFIXES.forEach(()=>row.push(0)); });
+      rows.push(row);
+    }
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = header.map((_,i)=> i===0 ? {wch:12} : {wch:14});
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Kas Masuk");
+    XLSX.writeFile(wb, `template-kas-masuk-${MONTH_NAMES[m-1]}-${y}.xlsx`);
+    showToast("Template diunduh");
+  });
+
+  document.getElementById("ptImportExcel").addEventListener("change", (e)=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload = async ()=>{
+      try{
+        const wb = XLSX.read(reader.result, {type:"array", cellDates:true});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {defval:0});
+        if(!rows.length){ document.getElementById("ptExcelResult").textContent="File kosong atau format tidak dikenali."; return; }
+
+        const getVal=(row,keys)=>{ for(const k of keys){ if(row[k]!==undefined) return row[k]; } return 0; };
+        const toNum=(v)=> typeof v==="number" ? v : (parseInt(String(v).replace(/[^\d-]/g,""),10)||0);
+        const toDateStr=(v)=>{
+          if(v instanceof Date){ const off=v.getTimezoneOffset(); return new Date(v.getTime()-off*60000).toISOString().slice(0,10); }
+          const s=String(v).trim();
+          const m1=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m1) return `${m1[1]}-${m1[2].padStart(2,"0")}-${m1[3].padStart(2,"0")}`;
+          const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m2) return `${m2[3]}-${m2[2].padStart(2,"0")}-${m2[1].padStart(2,"0")}`;
+          return null;
+        };
+
+        let dateCount=0, cellCount=0, skippedDates=[];
+        rows.forEach((row,idx)=>{
+          const dateRaw = getVal(row,["Tanggal","Tanggal (YYYY-MM-DD)","Date"]);
+          const dt = toDateStr(dateRaw);
+          if(!dt){ skippedDates.push(idx+2); return; }
+
+          let touchedThisRow=false;
+          UNITS.forEach(u=>{
+            const kasPagi=toNum(getVal(row,[unitCol(u.label,"Pagi")]));
+            const kasSore=toNum(getVal(row,[unitCol(u.label,"Sore")]));
+            const transferPagi=toNum(getVal(row,[unitCol(u.label,"Transfer Pagi")]));
+            const transferSore=toNum(getVal(row,[unitCol(u.label,"Transfer Sore")]));
+            const lainVal=toNum(getVal(row,[unitCol(u.label,"Lain")]));
+            if(!kasPagi && !kasSore && !transferPagi && !transferSore && !lainVal) return;
+
+            if(!PEMASUKAN[dt]) PEMASUKAN[dt]={units:{}, savedAt:new Date().toISOString()};
+            const existing = PEMASUKAN[dt].units[u.key] || {};
+            const lainLain = lainVal ? [{id:uid(),kategori:"lainnya",jumlah:lainVal,keterangan:"Impor Excel"}] : (existing.lainLain||[]);
+            const totalKas = kasPagi+kasSore+transferPagi+transferSore+lainVal;
+            PEMASUKAN[dt].units[u.key] = {
+              kasPagi, trxPagi: kasPagi?1:0, kasSore, trxSore: kasSore?1:0,
+              transferPagi, transferTrxPagi: transferPagi?1:0, transferSore, transferTrxSore: transferSore?1:0,
+              lainLain,
+              alokasi: computeAllocation(u.key, totalKas)
+            };
+            cellCount++; touchedThisRow=true;
+          });
+          if(touchedThisRow) dateCount++;
+        });
+
+        if(dateCount>0){ await savePemasukan(); }
+        document.getElementById("ptExcelResult").innerHTML = dateCount
+          ? `<span style="color:var(--moss-dark);font-weight:600;">${dateCount} tanggal berhasil diimpor</span> (${cellCount} data unit terisi).` + (skippedDates.length ? ` ${skippedDates.length} baris dilewati (baris Excel: ${skippedDates.join(", ")}) — format tanggal tidak dikenali.` : "")
+          : `Tidak ada data yang berhasil diimpor. Pastikan nama kolom persis seperti template (mis. "${UNITS[0].label} - Pagi") dan kolom Tanggal terisi.`;
+        showToast(dateCount ? `${dateCount} tanggal diimpor` : "Tidak ada data yang cocok");
+      }catch(err){
+        document.getElementById("ptExcelResult").textContent="Gagal membaca file. Pastikan formatnya .xlsx, .xls, atau .csv sesuai template.";
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value="";
+  });
+
+  document.getElementById("ptExportExcel").addEventListener("click", ()=>{
+    const wb = XLSX.utils.book_new();
+    const sheetsData = [
+      [SHEET_UNIT, rowsFromUnits()],
+      [SHEET_ALOKASI, rowsFromPctConfig()],
+      [SHEET_RIWAYAT_ALOKASI, rowsFromPctHistory()],
+      [SHEET_KAS_MASUK, rowsFromPemasukan()],
+      [SHEET_PEMASUKAN_LAIN, rowsFromPemasukanLain()],
+      [SHEET_PENGELUARAN, rowsFromPengeluaran()]
+    ];
+    sheetsData.forEach(([name, rows])=>{
+      // buang tanda kutip pemaksa-teks (dipakai khusus untuk Apps Script) sebelum ekspor ke Excel biasa
+      const cleanRows = rows.map(r=>{
+        const o={}; Object.keys(r).forEach(k=>{ let v=r[k]; if(typeof v==="string" && v.startsWith("'")) v=v.slice(1); o[k]=v; }); return o;
+      });
+      const ws = cleanRows.length ? XLSX.utils.json_to_sheet(cleanRows) : XLSX.utils.aoa_to_sheet([["(belum ada data)"]]);
+      XLSX.utils.book_append_sheet(wb, ws, name.slice(0,31));
+    });
+    XLSX.writeFile(wb, `lorongsatu21-data-lengkap-${todayStr()}.xlsx`);
+    showToast("Excel berhasil diekspor");
+  });
+  document.getElementById("ptExport").addEventListener("click", ()=>{
+    const backup = { exportedAt:new Date().toISOString(), units:UNITS, pocketsConfig:PCT_CONFIG, pocketsHistory:PCT_HISTORY, pemasukan:PEMASUKAN, pengeluaran:PENGELUARAN };
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download=`lorongsatu21-cadangan-${todayStr()}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    showToast("Cadangan diunduh");
+  });
+  document.getElementById("ptImportFile").addEventListener("change", (e)=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload = async ()=>{
+      try{
+        const data=JSON.parse(reader.result);
+        if(!(await customConfirm("Impor cadangan ini? Semua data di perangkat ini (unit, kas masuk, pengeluaran, alokasi) akan diganti dengan isi file cadangan.", "Ya, Impor"))) return;
+        UNITS = data.units||UNITS;
+        PCT_CONFIG = data.pocketsConfig||PCT_CONFIG;
+        PCT_HISTORY = data.pocketsHistory||PCT_HISTORY;
+        PEMASUKAN = data.pemasukan||PEMASUKAN;
+        PENGELUARAN = data.pengeluaran||PENGELUARAN;
+        await Promise.all([ saveUnitsAndPct(), savePctHistory(), savePemasukan(), savePengeluaran() ]);
+        showToast("Cadangan berhasil diimpor");
+        navigateTo("dashboard");
+      }catch(err){ showToast("File cadangan tidak valid"); }
+    };
+    reader.readAsText(file);
+    e.target.value="";
+  });
+
+  function build(){
+    const grid=document.getElementById("ptGrid"); grid.innerHTML="";
+    UNITS.forEach(u=>{
+      const card=document.createElement("div"); card.className="card card-pad";
+      card.innerHTML=`
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="text" class="unit-name-input" value="${escapeHtml(u.label)}" data-key="${u.key}" data-action="rename">
+          <button class="btn btn-danger btn-sm" data-action="delete" data-key="${u.key}">Hapus</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;">Kode: ${u.key}</div>
+      `;
+      grid.appendChild(card);
+    });
+    const addCard=document.createElement("div"); addCard.className="add-unit-card"; addCard.textContent="+ Tambah Unit Baru";
+    addCard.addEventListener("click", async ()=>{
+      const label=await customPrompt("Nama unit baru:");
+      if(label && label.trim()){
+        const key=slugify(label.trim(),UNITS);
+        UNITS.push({key,label:label.trim()});
+        PCT_CONFIG[key]={...DEFAULT_PCT};
+        await saveUnitsAndPct();
+        build(); showToast("Unit baru ditambahkan");
+      }
+    });
+    grid.appendChild(addCard);
+
+    grid.querySelectorAll('[data-action="rename"]').forEach(inp=>{
+      inp.addEventListener("change", async e=>{
+        const key=e.target.getAttribute("data-key"); const u=UNITS.find(x=>x.key===key);
+        if(u){ u.label=e.target.value.trim()||u.label; e.target.value=u.label; await saveUnitsAndPct(); showToast("Nama unit diperbarui"); }
+      });
+    });
+    grid.querySelectorAll('[data-action="delete"]').forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const key=btn.getAttribute("data-key");
+        if(UNITS.length<=1){ showToast("Minimal harus ada satu unit"); return; }
+        const u=UNITS.find(x=>x.key===key);
+        if(await customConfirm(`Hapus unit "${u.label}" dari form input? Riwayat & saldo kantong tetap tersimpan.`, "Ya, Hapus")){
+          UNITS=UNITS.filter(x=>x.key!==key);
+          await saveUnitsAndPct();
+          build(); showToast("Unit dihapus dari daftar aktif");
+        }
+      });
+    });
+  }
+  build();
+}
+
+/* ================= INIT ================= */
+async function loadFromSheets(){
+  const [unitRows, pctRows, histRows, kasRows, lainRows, pengRows] = await Promise.all([
+    sheetsGetAll(SHEET_UNIT), sheetsGetAll(SHEET_ALOKASI), sheetsGetAll(SHEET_RIWAYAT_ALOKASI),
+    sheetsGetAll(SHEET_KAS_MASUK), sheetsGetAll(SHEET_PEMASUKAN_LAIN), sheetsGetAll(SHEET_PENGELUARAN)
+  ]);
+  if(unitRows===null) return false; // gagal total, biar fallback ke penyimpanan lama
+
+  UNITS = unitRows.length ? unitsFromRows(unitRows) : DEFAULT_UNITS.map(x=>({...x}));
+  PCT_CONFIG = pctConfigFromRows(pctRows||[], UNITS);
+  UNITS.forEach(un=>{ if(!PCT_CONFIG[un.key]) PCT_CONFIG[un.key]={...DEFAULT_PCT}; });
+  PCT_HISTORY = pctHistoryFromRows(histRows||[], UNITS);
+  PEMASUKAN = pemasukanFromRows(kasRows||[], lainRows||[], UNITS);
+  PENGELUARAN = pengeluaranFromRows(pengRows||[], UNITS);
+
+  if(!unitRows.length){
+    // Sheet baru/kosong: kirim unit & persentase default sekali di awal supaya tab-nya terisi
+    await saveUnitsAndPct();
+  }
+  return true;
+}
+
+async function initApp(){
+  let loaded=false;
+  if(sheetsConfigured){
+    try{ loaded = await loadFromSheets(); }
+    catch(e){ console.error("Gagal memuat dari Google Sheets, memakai penyimpanan cadangan:", e); }
+  }
+
+  if(!loaded){
+    const [u,p,ph,pm,pg] = await Promise.all([
+      storageGet(K_UNITS,null), storageGet(K_PCT,null), storageGet(K_PCT_HIST,[]),
+      storageGet(K_PEMASUKAN,{}), storageGet(K_PENGELUARAN,[])
+    ]);
+    UNITS = (u && u.length) ? u : DEFAULT_UNITS.map(x=>({...x}));
+    if(!p){
+      PCT_CONFIG={}; UNITS.forEach(un=>{ PCT_CONFIG[un.key]={...DEFAULT_PCT}; });
+    } else { PCT_CONFIG=p; UNITS.forEach(un=>{ if(!PCT_CONFIG[un.key]) PCT_CONFIG[un.key]={...DEFAULT_PCT}; }); }
+    PCT_HISTORY=dedupPctHistory(ph||[]);
+    PEMASUKAN=pm||{};
+    PENGELUARAN=pg||[];
+  }
+
+  buildNav();
+  document.getElementById("loadingOverlay").style.display="none";
+  navigateTo("dashboard");
+  if(sheetsConfigured && !loaded){ showToast("Google Sheets tidak terjangkau, memakai penyimpanan cadangan sementara"); }
+
+  document.getElementById("btnHamburger").addEventListener("click", ()=>{
+    document.getElementById("sidebar").classList.toggle("open");
+    document.getElementById("sidebarOverlay").classList.toggle("open");
+  });
+  document.getElementById("sidebarOverlay").addEventListener("click", ()=>{
+    document.getElementById("sidebar").classList.remove("open");
+    document.getElementById("sidebarOverlay").classList.remove("open");
+  });
+}
+initApp();
+</script>
+</body>
+</html>
