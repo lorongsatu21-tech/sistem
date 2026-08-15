@@ -246,10 +246,10 @@ input.count{width:100%;text-align:center;}
 <script>
 /* ================= CONSTANTS ================= */
 const DEFAULT_UNITS = [
-  { key:"fotokopi_foto", label:"Fotokopi & Foto" },
-  { key:"atk", label:"ATK" },
-  { key:"undangan", label:"Cetak Undangan" },
-  { key:"pakaian", label:"Pakaian" }
+  { key:"fotokopi_foto", label:"Lorongsatu21" },
+  { key:"atk", label:"Grafika" },
+  { key:"undangan", label:"Faizbun" },
+  { key:"pakaian", label:"Faizstore" }
 ];
 const DEFAULT_PCT = { stok:60, operasional:20, investasi:5, dana_aman:5, profit:10 };
 const POCKET_DEFS = [
@@ -1856,7 +1856,14 @@ function renderPengaturan(c){
     grid.querySelectorAll('[data-action="rename"]').forEach(inp=>{
       inp.addEventListener("change", async e=>{
         const key=e.target.getAttribute("data-key"); const u=UNITS.find(x=>x.key===key);
-        if(u){ u.label=e.target.value.trim()||u.label; e.target.value=u.label; await saveUnitsAndPct(); showToast("Nama unit diperbarui"); }
+        if(u){
+          u.label=e.target.value.trim()||u.label; e.target.value=u.label;
+          await saveUnitsAndPct();
+          await savePctHistory();
+          await savePemasukan();
+          await savePengeluaran();
+          showToast("Nama unit diperbarui, riwayat lama ikut disesuaikan");
+        }
       });
     });
     grid.querySelectorAll('[data-action="delete"]').forEach(btn=>{
