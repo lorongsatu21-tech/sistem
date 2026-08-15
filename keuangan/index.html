@@ -365,6 +365,7 @@ let googleAccessToken = null;
 let googleTokenClient = null;
 let signedInEmail = null;
 let isSignedIn = false;
+let triedSilentLogin = false; // pastikan percobaan diam-diam cuma sekali per sesi, tidak dobel popup
 
 function waitForGoogleGis(timeoutMs){
   return new Promise((resolve)=>{
@@ -888,9 +889,11 @@ async function handleSampulMasuk(){
 
   btn.disabled=true; btn.textContent="Menghubungkan...";
   status.textContent="Membuka jendela login Google...";
-  const ok = await requestGoogleSignIn("consent");
+  const promptMode = triedSilentLogin ? "consent" : "";
+  const ok = await requestGoogleSignIn(promptMode);
+  triedSilentLogin = true;
   if(!ok){
-    status.textContent="Login dibatalkan atau gagal. Coba lagi.";
+    status.textContent = promptMode==="" ? "Perlu izin akses — klik Masuk sekali lagi." : "Login dibatalkan atau gagal. Coba lagi.";
     btn.disabled=false; btn.textContent="Masuk";
     return;
   }
