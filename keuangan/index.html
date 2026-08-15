@@ -256,6 +256,7 @@ input.count{width:100%;text-align:center;}
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -272,7 +273,10 @@ input.count{width:100%;text-align:center;}
       <h1>Sistem Keuangan</h1>
     </div>
     <nav id="navContainer"></nav>
-    <div class="sidebar-footer">Data tersinkron otomatis lewat akun Claude Anda di HP maupun komputer.</div>
+    <div class="sidebar-footer">
+      <span id="signedInAs"></span>
+      <a href="javascript:void(0)" id="btnSignOut" style="display:block;margin-top:4px;color:#c9d6ee;">Keluar</a>
+    </div>
   </aside>
 
   <div class="main">
@@ -284,7 +288,7 @@ input.count{width:100%;text-align:center;}
           <div class="subtitle" id="pageSubtitle">Ringkasan keuangan seluruh unit</div>
         </div>
       </div>
-      <div id="driveSyncStatus" style="font-size:11.5px;color:var(--muted);text-align:right;"></div>
+      <div id="sheetsSyncStatus" style="font-size:11.5px;color:var(--muted);text-align:right;"></div>
     </div>
     <div class="page-content" id="pageContent"></div>
   </div>
@@ -333,19 +337,17 @@ const PAGE_META = {
 
 const K_UNITS="l21_units", K_PCT="l21_pockets_config", K_PCT_HIST="l21_pockets_config_history", K_PEMASUKAN="l21_pemasukan", K_PENGELUARAN="l21_pengeluaran";
 
-/* ================= GOOGLE SHEETS SYNC ================= */
-// CATATAN: Claude.ai memblokir koneksi fetch() langsung dari artifact ke domain
-// luar (termasuk script.google.com) lewat Content Security Policy platform.
-// Jalur Google Sheets ini TIDAK BISA dipakai langsung dari dalam aplikasi ini.
-// Dikosongkan supaya aplikasi tidak buang waktu mencoba & memakai penyimpanan
-// bawaan Claude (window.storage) sebagai jalur utama, dengan Ekspor/Impor
-// Excel & JSON sebagai cara pindah data manual antar perangkat.
-// Sebelumnya dikosongkan karena diblokir CSP saat dibuka sebagai artifact Claude.
-// Setelah aplikasi ini di-deploy sebagai website (GitHub Pages, sama seperti
-// Buku Kelas Guru), koneksi langsung ke Apps Script ini akan berjalan normal.
-const SHEETS_ENDPOINT = "https://script.google.com/macros/s/AKfycbxqDE4QFNz06-kpg5Z6W5wlY-naowebtKoDPMdO8GVVhl_dCYjE4fLb5q3wj6Y9ZPr4_Q/exec";
-const SHEETS_TOKEN = "Bismillah148211$";
-const sheetsConfigured = !!SHEETS_ENDPOINT;
+/* ================= GOOGLE SHEETS SYNC (via Google Sign-In + Sheets API v4) ================= */
+// PENTING — CARA ISI DUA NILAI DI BAWAH INI:
+// 1) OAUTH_CLIENT_ID — dari Google Cloud Console > APIs & Services > Credentials >
+//    Create Credentials > OAuth client ID > Web application. Client ID BUKAN rahasia
+//    (aman terlihat publik) — yang menjaga keamanan adalah akun mana yang Anda
+//    izinkan login DAN siapa yang diberi akses lewat Share di Google Sheet-nya.
+// 2) SPREADSHEET_ID — salin dari URL Google Sheet Anda, bagian antara "/d/" dan "/edit".
+const OAUTH_CLIENT_ID = "161910278592-4g8h4oi240lg88hkjlm0ja8nl7jnq53v.apps.googleusercontent.com";
+const SPREADSHEET_ID = "1bAS8NIzcSSENH5o9MSucaINMURUcwXFCRln0w4_g23A";
+const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
+const sheetsConfigured = true;
 
 const SHEET_UNIT="Unit", SHEET_ALOKASI="Alokasi Kantong", SHEET_RIWAYAT_ALOKASI="Riwayat Alokasi",
       SHEET_KAS_MASUK="Kas Masuk", SHEET_PEMASUKAN_LAIN="Pemasukan Lain", SHEET_PENGELUARAN="Pengeluaran";
@@ -358,15 +360,92 @@ const HDR_PENGELUARAN_SHEET=["Tanggal","Unit","Kantong","Jumlah","Keterangan"];
 
 function asText(v){ return "'"+v; } // paksa Google Sheets simpan sebagai teks, bukan tanggal/angka otomatis
 
+/* ---- Autentikasi Google (Google Identity Services, token OAuth di memori saja) ---- */
+let googleAccessToken = null;
+let googleTokenClient = null;
+let signedInEmail = null;
+let isSignedIn = false;
+
+function initGoogleAuth(){
+  return new Promise((resolve)=>{
+    try{
+      googleTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: OAUTH_CLIENT_ID,
+        scope: OAUTH_SCOPE,
+        callback: ()=>{}
+      });
+      resolve(true);
+    }catch(e){ console.error("Gagal init Google Auth:", e); resolve(false); }
+  });
+}
+function requestGoogleSignIn(prompt){
+  return new Promise((resolve)=>{
+    googleTokenClient.callback = (tokenResponse)=>{
+      if(tokenResponse && tokenResponse.access_token){
+        googleAccessToken = tokenResponse.access_token;
+        isSignedIn = true;
+        fetchSignedInEmail().finally(()=>resolve(true));
+      } else { resolve(false); }
+    };
+    googleTokenClient.error_callback = ()=>resolve(false);
+    googleTokenClient.requestAccessToken({ prompt: prompt||"" });
+  });
+}
+async function fetchSignedInEmail(){
+  try{
+    const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", { headers:{ Authorization:`Bearer ${googleAccessToken}` } });
+    if(!res.ok) return;
+    const info = await res.json();
+    signedInEmail = info.email || null;
+  }catch(e){ /* abaikan, tidak kritis */ }
+}
+function googleSignOut(){
+  if(googleAccessToken && window.google && google.accounts && google.accounts.oauth2){
+    google.accounts.oauth2.revoke(googleAccessToken, ()=>{});
+  }
+  googleAccessToken = null; signedInEmail = null; isSignedIn = false;
+  location.reload();
+}
+
+/* ---- Panggilan Google Sheets API v4 (pakai token OAuth di header Authorization) ---- */
+async function sheetsApiFetch(path, options){
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}${path}`, {
+    ...options,
+    headers:{ "Authorization":`Bearer ${googleAccessToken}`, "Content-Type":"application/json", ...(options&&options.headers) }
+  });
+  if(res.status===401){
+    const ok = await requestGoogleSignIn("");
+    if(ok){
+      return fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}${path}`, {
+        ...options,
+        headers:{ "Authorization":`Bearer ${googleAccessToken}`, "Content-Type":"application/json", ...(options&&options.headers) }
+      });
+    }
+  }
+  return res;
+}
+function rowsToGrid(headers, rowObjects){
+  return rowObjects.map(r=>headers.map(h=>{
+    let v=r[h]; if(v===undefined||v===null) v="";
+    if(typeof v==="string" && v.startsWith("'")) v=v.slice(1);
+    return v;
+  }));
+}
+function gridToRows(values){
+  if(!values || values.length<1) return [];
+  const headers=values[0];
+  return values.slice(1).map(row=>{
+    const o={}; headers.forEach((h,i)=>{ o[h]=row[i]!==undefined?row[i]:""; }); return o;
+  });
+}
 async function sheetsGetAll(sheetName){
   const attempts=3;
   for(let i=0;i<attempts;i++){
     try{
-      const url=`${SHEETS_ENDPOINT}?action=getAll&sheet=${encodeURIComponent(sheetName)}&token=${encodeURIComponent(SHEETS_TOKEN)}`;
-      const res=await fetch(url);
-      const data=await res.json();
-      if(data.error) throw new Error(data.error);
-      return data.rows||[];
+      const res = await sheetsApiFetch(`/values/${encodeURIComponent(sheetName)}`, { method:"GET" });
+      if(!res.ok){ throw new Error(`HTTP ${res.status}`); }
+      const data = await res.json();
+      return gridToRows(data.values||[]);
     }catch(e){
       if(i===attempts-1){ console.error(`Gagal memuat sheet "${sheetName}" setelah ${attempts} percobaan:`, e); return null; }
       await new Promise(r=>setTimeout(r,500*(i+1)));
@@ -375,15 +454,15 @@ async function sheetsGetAll(sheetName){
 }
 async function sheetsReplaceAll(sheetName, headers, rows){
   const attempts=3;
+  const grid=[headers, ...rowsToGrid(headers, rows)];
   for(let i=0;i<attempts;i++){
     try{
-      const res=await fetch(SHEETS_ENDPOINT,{
-        method:"POST",
-        headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body:JSON.stringify({action:"replaceAll", sheet:sheetName, headers, rows, token:SHEETS_TOKEN})
+      const clearRes = await sheetsApiFetch(`/values/${encodeURIComponent(sheetName)}:clear`, { method:"POST", body:"{}" });
+      if(!clearRes.ok) throw new Error(`Gagal clear (HTTP ${clearRes.status})`);
+      const updateRes = await sheetsApiFetch(`/values/${encodeURIComponent(sheetName)}?valueInputOption=USER_ENTERED`, {
+        method:"PUT", body: JSON.stringify({ range: sheetName, majorDimension:"ROWS", values: grid })
       });
-      const data=await res.json();
-      if(data.error) throw new Error(data.error);
+      if(!updateRes.ok) throw new Error(`Gagal update (HTTP ${updateRes.status})`);
       return true;
     }catch(e){
       if(i===attempts-1){ console.error(`Gagal menyimpan sheet "${sheetName}" setelah ${attempts} percobaan:`, e); return false; }
@@ -514,68 +593,7 @@ async function savePengeluaran(){
   return ok;
 }
 
-/* ================= SINKRON GOOGLE DRIVE (via Claude API + MCP) ================= */
-const DRIVE_MCP = [{ type:"url", url:"https://drivemcp.googleapis.com/mcp/v1", name:"google-drive" }];
-
-function rowsToCSV(headers, rows){
-  const esc=(v)=>{ const s=String(v===undefined||v===null?"":v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  const lines=[headers.map(esc).join(",")];
-  rows.forEach(r=>{
-    const clean={}; Object.keys(r).forEach(k=>{ let v=r[k]; if(typeof v==="string"&&v.startsWith("'")) v=v.slice(1); clean[k]=v; });
-    lines.push(headers.map(h=>esc(clean[h])).join(","));
-  });
-  return lines.join("\n");
-}
-
-function setDriveSyncStatus(text, isError){
-  const el=document.getElementById("driveSyncStatus");
-  if(!el) return;
-  el.textContent=text;
-  el.style.color = isError ? "var(--danger)" : "var(--muted)";
-}
-
-async function syncDriveInBackground(fileName, headers, rows){
-  setDriveSyncStatus("Menyinkronkan ke Google Drive...");
-  const csv = rowsToCSV(headers, rows);
-  const prompt = `Di Google Drive saya, cari file bernama persis "${fileName}". Kalau file itu sudah ada, timpa/ganti seluruh isinya dengan teks CSV di bawah ini (isi lama dihapus total, diganti isi baru ini). Kalau belum ada, buat file baru dengan nama itu berisi teks CSV ini. Jangan buat file duplikat kalau sudah ada satu dengan nama persis sama. Setelah selesai, balas HANYA dengan kata "OK" tanpa penjelasan apa pun.\n\n${csv}`;
-  try{
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        model:"claude-sonnet-4-6",
-        max_tokens:1200,
-        messages:[{ role:"user", content: prompt }],
-        mcp_servers: DRIVE_MCP
-      })
-    });
-    const data = await res.json();
-    console.log("[Drive Sync] Balasan API lengkap:", JSON.stringify(data, null, 2));
-
-    if(data.error){
-      setDriveSyncStatus(`Gagal sinkron: ${data.error.message||JSON.stringify(data.error)}`, true);
-      return;
-    }
-    const blockTypes = (data.content||[]).map(b=>b.type);
-    const toolUses = (data.content||[]).filter(b=>b.type==="mcp_tool_use").map(b=>b.name);
-    const toolResults = (data.content||[]).filter(b=>b.type==="mcp_tool_result");
-    const textOut = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ");
-    console.log("[Drive Sync] Tipe blok balasan:", blockTypes, "| Tool dipanggil:", toolUses);
-
-    if(textOut.toUpperCase().includes("OK") && toolUses.length>0){
-      setDriveSyncStatus(`Tersinkron ke Google Drive · ${new Date().toLocaleTimeString("id-ID")}`);
-    } else if(toolUses.length===0){
-      setDriveSyncStatus(`Google Drive tidak tersambung untuk aksi ini (tidak ada alat yang dipanggil) — lihat Console untuk detail`, true);
-    } else {
-      setDriveSyncStatus(`Respons tidak sesuai dugaan: "${textOut.slice(0,80)}" — lihat Console untuk detail lengkap`, true);
-    }
-  }catch(e){
-    console.error("[Drive Sync] Error jaringan/parsing:", e);
-    setDriveSyncStatus(`Gagal sinkron: ${e.message} (data tetap tersimpan di aplikasi)`, true);
-  }
-}
-
-/* ================= STORAGE (fallback lama, dipakai kalau Sheets belum tersambung) ================= */
+/* ================= STORAGE (fallback darurat kalau Sheets API gagal total) ================= */
 let storageAvailable = !!(window.storage && window.storage.get && window.storage.set);
 async function storageGet(key, fallback){
   if(!storageAvailable) return fallback;
@@ -827,7 +845,9 @@ function navigateTo(id){
 /* ================= SAMPUL ================= */
 function renderSampul(c){
   const dt=todayStr();
-  const unitChips = UNITS.slice(0,4).map(u=>`<div class="chip">${escapeHtml(u.label)}</div>`).join("");
+  const genericChips = ["Unit 1","Unit 2","Unit 3","Unit 4"];
+  const chipLabels = isSignedIn ? UNITS.slice(0,4).map(u=>u.label) : genericChips;
+  const unitChips = chipLabels.map(l=>`<div class="chip">${escapeHtml(l)}</div>`).join("");
   c.innerHTML = `
     <div class="sampul-screen">
       <div class="sampul-top">
@@ -842,12 +862,31 @@ function renderSampul(c){
 
       <div class="sampul-btn-wrap">
         <button class="btn-sampul" id="sampulMasuk">Masuk</button>
+        <div id="sampulStatus" style="margin-top:14px;font-size:12px;color:#8fa5cc;text-align:center;min-height:16px;"></div>
       </div>
 
       <div class="sampul-footer">Data tersinkron otomatis ke Google Sheets</div>
     </div>
   `;
-  document.getElementById("sampulMasuk").addEventListener("click", ()=>navigateTo("dashboard"));
+  document.getElementById("sampulMasuk").addEventListener("click", handleSampulMasuk);
+}
+
+async function handleSampulMasuk(){
+  const btn=document.getElementById("sampulMasuk");
+  const status=document.getElementById("sampulStatus");
+  if(isSignedIn){ navigateTo("dashboard"); return; }
+
+  btn.disabled=true; btn.textContent="Menghubungkan...";
+  status.textContent="Membuka jendela login Google...";
+  const ok = await requestGoogleSignIn("consent");
+  if(!ok){
+    status.textContent="Login dibatalkan atau gagal. Coba lagi.";
+    btn.disabled=false; btn.textContent="Masuk";
+    return;
+  }
+  status.textContent="Memuat data...";
+  await loadAppData();
+  navigateTo("dashboard");
 }
 
 function renderDashboard(c){
@@ -1954,12 +1993,10 @@ async function loadFromSheets(){
   return true;
 }
 
-async function initApp(){
+async function loadAppData(){
   let loaded=false;
-  if(sheetsConfigured){
-    try{ loaded = await loadFromSheets(); }
-    catch(e){ console.error("Gagal memuat dari Google Sheets, memakai penyimpanan cadangan:", e); }
-  }
+  try{ loaded = await loadFromSheets(); }
+  catch(e){ console.error("Gagal memuat dari Google Sheets, memakai penyimpanan cadangan:", e); }
 
   if(!loaded){
     const [u,p,ph,pm,pg] = await Promise.all([
@@ -1975,10 +2012,17 @@ async function initApp(){
     PENGELUARAN=pg||[];
   }
 
+  document.getElementById("signedInAs").textContent = signedInEmail || "";
+  if(!loaded){ showToast("Google Sheets tidak terjangkau, memakai penyimpanan cadangan sementara"); }
+
+  document.getElementById("btnSignOut").addEventListener("click", googleSignOut);
+}
+
+async function initApp(){
+  await initGoogleAuth();
   buildNav();
   document.getElementById("loadingOverlay").style.display="none";
   navigateTo("sampul");
-  if(sheetsConfigured && !loaded){ showToast("Google Sheets tidak terjangkau, memakai penyimpanan cadangan sementara"); }
 
   document.getElementById("btnHamburger").addEventListener("click", ()=>{
     document.getElementById("sidebar").classList.toggle("open");
