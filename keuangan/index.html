@@ -366,17 +366,27 @@ let googleTokenClient = null;
 let signedInEmail = null;
 let isSignedIn = false;
 
-function initGoogleAuth(){
+function waitForGoogleGis(timeoutMs){
   return new Promise((resolve)=>{
-    try{
-      googleTokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: OAUTH_CLIENT_ID,
-        scope: OAUTH_SCOPE,
-        callback: ()=>{}
-      });
-      resolve(true);
-    }catch(e){ console.error("Gagal init Google Auth:", e); resolve(false); }
+    const started = Date.now();
+    (function check(){
+      if(window.google && google.accounts && google.accounts.oauth2){ resolve(true); return; }
+      if(Date.now()-started > (timeoutMs||8000)){ resolve(false); return; }
+      setTimeout(check, 100);
+    })();
   });
+}
+async function initGoogleAuth(){
+  const ready = await waitForGoogleGis(8000);
+  if(!ready){ console.error("Script Google Identity Services tidak kunjung siap."); return false; }
+  try{
+    googleTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: OAUTH_CLIENT_ID,
+      scope: OAUTH_SCOPE,
+      callback: ()=>{}
+    });
+    return true;
+  }catch(e){ console.error("Gagal init Google Auth:", e); return false; }
 }
 function requestGoogleSignIn(prompt){
   return new Promise((resolve)=>{
