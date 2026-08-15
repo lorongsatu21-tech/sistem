@@ -79,7 +79,8 @@ a{color:inherit;}
 .sampul-card h1{font-size:32px;font-weight:800;color:#ffffff;margin:0 0 8px;letter-spacing:.01em;}
 .sampul-card .sub1{font-size:15px;color:#c9d6ee;margin-bottom:6px;}
 .sampul-card .sub2{font-size:13px;color:#8fa5cc;margin-bottom:30px;}
-.sampul-card .chip{background:rgba(255,255,255,0.08);color:#e4ecfb;border:1px solid rgba(255,255,255,0.16);padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:600;}
+.sampul-card .chip{background:rgba(255,255,255,0.08);color:#e4ecfb;border:1px solid rgba(255,255,255,0.16);padding:5px 10px;border-radius:8px;font-size:clamp(8.5px,3vw,12.5px);font-weight:600;white-space:nowrap;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+.sampul-card .unit-row{display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;width:100%;}
 .sampul-card .btn-sampul{
   background:#bfe0fb;color:#0d2a52;border:none;padding:13px 40px;font-size:15px;font-weight:700;
   border-radius:999px;cursor:pointer;margin-top:34px;
@@ -819,7 +820,7 @@ function renderSampul(c){
         <div class="sub1">Sistem Keuangan Multi-Unit</div>
         <div class="sub2">${dateLabel(dt)}</div>
 
-        <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;">
+        <div class="unit-row">
           ${unitChips}
         </div>
 
