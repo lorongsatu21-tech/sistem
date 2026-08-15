@@ -62,33 +62,40 @@ a{color:inherit;}
 .app.sampul-mode .main{margin-left:0;}
 .app.sampul-mode .page-content{padding:0;max-width:none;}
 .sampul-screen{
+  position:relative;
   min-height:100vh;
   width:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
   background:
     radial-gradient(circle at 15% 20%, rgba(255,255,255,0.05) 0, transparent 45%),
     radial-gradient(circle at 85% 80%, rgba(255,255,255,0.05) 0, transparent 45%),
     repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 2px, transparent 2px 26px),
     linear-gradient(160deg, #0d2a52 0%, #143a63 55%, #0d2a52 100%);
-  padding:24px;
   box-sizing:border-box;
+  overflow:hidden;
 }
-.sampul-card{max-width:480px;width:100%;text-align:center;}
-.sampul-card h1{font-size:32px;font-weight:800;color:#ffffff;margin:0 0 8px;letter-spacing:.01em;}
-.sampul-card .sub1{font-size:15px;color:#c9d6ee;margin-bottom:6px;}
-.sampul-card .sub2{font-size:13px;color:#8fa5cc;margin-bottom:30px;}
-.sampul-card .chip{background:rgba(255,255,255,0.08);color:#e4ecfb;border:1px solid rgba(255,255,255,0.16);padding:5px 10px;border-radius:8px;font-size:clamp(8.5px,3vw,12.5px);font-weight:600;white-space:nowrap;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;}
-.sampul-card .unit-row{display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;width:100%;}
-.sampul-card .btn-sampul{
+.sampul-top{position:absolute;top:9%;left:50%;transform:translateX(-50%);width:100%;max-width:480px;text-align:center;padding:0 24px;box-sizing:border-box;}
+.sampul-top h1{font-size:32px;font-weight:800;color:#ffffff;margin:0 0 8px;letter-spacing:.01em;}
+.sampul-top .sub1{font-size:15px;color:#c9d6ee;margin-bottom:6px;}
+.sampul-top .sub2{font-size:13px;color:#8fa5cc;}
+
+.sampul-units{position:absolute;top:24%;left:50%;transform:translateX(-50%);width:100%;max-width:420px;padding:0 24px;box-sizing:border-box;}
+.unit-grid{display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;width:100%;}
+.unit-grid .chip{
+  background:rgba(255,255,255,0.08);color:#e4ecfb;border:1px solid rgba(255,255,255,0.16);
+  border-radius:8px;font-size:clamp(8.5px,3vw,12.5px);font-weight:600;
+  padding:6px 10px;text-align:center;white-space:nowrap;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+}
+
+.sampul-btn-wrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
+.btn-sampul{
   background:#bfe0fb;color:#0d2a52;border:none;padding:13px 40px;font-size:15px;font-weight:700;
-  border-radius:999px;cursor:pointer;margin-top:34px;
+  border-radius:999px;cursor:pointer;
   box-shadow:0 6px 18px rgba(0,0,0,0.25);
   transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
 }
-.sampul-card .btn-sampul:hover{background:#d6ecfd;transform:translateY(-3px);box-shadow:0 10px 26px rgba(0,0,0,0.32);}
-.sampul-card .footnote{margin-top:36px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.14);font-size:11.5px;color:#8fa5cc;}
+.btn-sampul:hover{background:#d6ecfd;transform:translateY(-3px);box-shadow:0 10px 26px rgba(0,0,0,0.32);}
+
+.sampul-footer{position:absolute;bottom:6%;left:50%;transform:translateX(-50%);width:100%;max-width:400px;text-align:center;padding:0 24px;box-sizing:border-box;font-size:11.5px;color:#8fa5cc;}
 
 /* GENERIC */
 .card{background:var(--paper-2);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);}
@@ -812,22 +819,24 @@ function navigateTo(id){
 /* ================= SAMPUL ================= */
 function renderSampul(c){
   const dt=todayStr();
-  const unitChips = UNITS.map(u=>`<span class="chip">${escapeHtml(u.label)}</span>`).join("");
+  const unitChips = UNITS.slice(0,4).map(u=>`<div class="chip">${escapeHtml(u.label)}</div>`).join("");
   c.innerHTML = `
     <div class="sampul-screen">
-      <div class="sampul-card">
+      <div class="sampul-top">
         <h1>LORONGSATU21</h1>
         <div class="sub1">Sistem Keuangan Multi-Unit</div>
         <div class="sub2">${dateLabel(dt)}</div>
-
-        <div class="unit-row">
-          ${unitChips}
-        </div>
-
-        <button class="btn-sampul" id="sampulMasuk">Masuk</button>
-
-        <div class="footnote">Data tersinkron otomatis ke Google Sheets</div>
       </div>
+
+      <div class="sampul-units">
+        <div class="unit-grid">${unitChips}</div>
+      </div>
+
+      <div class="sampul-btn-wrap">
+        <button class="btn-sampul" id="sampulMasuk">Masuk</button>
+      </div>
+
+      <div class="sampul-footer">Data tersinkron otomatis ke Google Sheets</div>
     </div>
   `;
   document.getElementById("sampulMasuk").addEventListener("click", ()=>navigateTo("dashboard"));
