@@ -56,6 +56,39 @@ a{color:inherit;}
 .hamburger{display:none;background:none;border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:16px;}
 .page-content{padding:24px 28px 60px;max-width:1180px;}
 
+/* ===== MODE SAMPUL: layar penuh, tanpa sidebar/topheader ===== */
+.app.sampul-mode .sidebar{display:none;}
+.app.sampul-mode .topheader{display:none;}
+.app.sampul-mode .main{margin-left:0;}
+.app.sampul-mode .page-content{padding:0;max-width:none;}
+.sampul-screen{
+  min-height:100vh;
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(255,255,255,0.05) 0, transparent 45%),
+    radial-gradient(circle at 85% 80%, rgba(255,255,255,0.05) 0, transparent 45%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 2px, transparent 2px 26px),
+    linear-gradient(160deg, #0d2a52 0%, #143a63 55%, #0d2a52 100%);
+  padding:24px;
+  box-sizing:border-box;
+}
+.sampul-card{max-width:480px;width:100%;text-align:center;}
+.sampul-card h1{font-size:32px;font-weight:800;color:#ffffff;margin:0 0 8px;letter-spacing:.01em;}
+.sampul-card .sub1{font-size:15px;color:#c9d6ee;margin-bottom:6px;}
+.sampul-card .sub2{font-size:13px;color:#8fa5cc;margin-bottom:30px;}
+.sampul-card .chip{background:rgba(255,255,255,0.08);color:#e4ecfb;border:1px solid rgba(255,255,255,0.16);padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:600;}
+.sampul-card .btn-sampul{
+  background:#bfe0fb;color:#0d2a52;border:none;padding:13px 40px;font-size:15px;font-weight:700;
+  border-radius:999px;cursor:pointer;margin-top:34px;
+  box-shadow:0 6px 18px rgba(0,0,0,0.25);
+  transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.sampul-card .btn-sampul:hover{background:#d6ecfd;transform:translateY(-3px);box-shadow:0 10px 26px rgba(0,0,0,0.32);}
+.sampul-card .footnote{margin-top:36px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.14);font-size:11.5px;color:#8fa5cc;}
+
 /* GENERIC */
 .card{background:var(--paper-2);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);}
 .card-pad{padding:16px 18px;}
@@ -215,7 +248,7 @@ input.count{width:100%;text-align:center;}
   <div>Memuat data keuangan...</div>
 </div>
 
-<div class="app">
+<div class="app" id="appShell">
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
   <aside class="sidebar" id="sidebar">
     <div class="brand">
@@ -755,6 +788,7 @@ function setActiveNav(id){
   document.getElementById("pageSubtitle").textContent=meta[1];
   document.getElementById("sidebar").classList.remove("open");
   document.getElementById("sidebarOverlay").classList.remove("open");
+  document.getElementById("appShell").classList.toggle("sampul-mode", id==="sampul");
 }
 function navigateTo(id){
   currentPage=id||"dashboard";
@@ -777,22 +811,21 @@ function navigateTo(id){
 /* ================= SAMPUL ================= */
 function renderSampul(c){
   const dt=todayStr();
-  const unitChips = UNITS.map(u=>`<span class="legend-chip" style="background:#eef3ec;padding:6px 12px;border-radius:999px;">${escapeHtml(u.label)}</span>`).join("");
+  const unitChips = UNITS.map(u=>`<span class="chip">${escapeHtml(u.label)}</span>`).join("");
   c.innerHTML = `
-    <div style="max-width:560px;margin:20px auto 0;text-align:center;">
-      <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:10px;">Sampul</div>
-      <h1 style="font-size:30px;font-weight:800;color:var(--moss-dark);margin:0 0 6px;">LORONGSATU21</h1>
-      <div style="font-size:15px;color:var(--muted);margin-bottom:6px;">Sistem Keuangan Multi-Unit</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:28px;">${dateLabel(dt)}</div>
+    <div class="sampul-screen">
+      <div class="sampul-card">
+        <h1>LORONGSATU21</h1>
+        <div class="sub1">Sistem Keuangan Multi-Unit</div>
+        <div class="sub2">${dateLabel(dt)}</div>
 
-      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:32px;">
-        ${unitChips}
-      </div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;">
+          ${unitChips}
+        </div>
 
-      <button class="btn btn-primary" id="sampulMasuk" style="padding:12px 32px;font-size:15px;">Masuk ke Dashboard →</button>
+        <button class="btn-sampul" id="sampulMasuk">Masuk</button>
 
-      <div style="margin-top:40px;padding-top:24px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);">
-        Data tersinkron otomatis ke Google Sheets
+        <div class="footnote">Data tersinkron otomatis ke Google Sheets</div>
       </div>
     </div>
   `;
