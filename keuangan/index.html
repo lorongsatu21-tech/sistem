@@ -1762,7 +1762,7 @@ function renderPengaturan(c){
         const a=d.alokasi||{};
         const alokasiSum=(a.stok||0)+(a.operasional||0)+(a.investasi||0)+(a.dana_aman||0)+(a.profit||0);
         // Kalau ada kas masuk tapi jumlah alokasinya tidak cocok (kosong/salah), hitung ulang
-        if(totalKas>0 && alokasiSum!==totalKas){
+        if(alokasiSum!==totalKas){
           d.alokasi = computeAllocation(u.key, totalKas);
           fixedCount++;
         }
