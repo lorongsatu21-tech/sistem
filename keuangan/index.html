@@ -1671,6 +1671,13 @@ function renderPengaturan(c){
       <span id="ptReloadStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
     </div>
 
+    <div class="section-title">Hitung Ulang Alokasi</div>
+    <div class="card card-pad" style="margin-bottom:28px;">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">Kalau "Total Kas Masuk" dan "Total Alokasi Kantong" di halaman Rekap/Analisis beda jumlahnya, biasanya karena ada catatan Kas Masuk yang kolom alokasinya masih kosong (misal dari data yang di-paste langsung ke Sheets tanpa lewat aplikasi). Tekan ini untuk menghitung ulang alokasi catatan yang kosong itu, pakai persentase yang berlaku sekarang untuk masing-masing unit.</div>
+      <button class="btn btn-primary" id="ptRecalcAlokasi">Hitung Ulang Alokasi yang Kosong</button>
+      <div id="ptRecalcResult" style="margin-top:12px;font-size:12.5px;color:var(--muted);"></div>
+    </div>
+
     <div class="section-title">Verifikasi Data Tersimpan</div>
     <div class="card card-pad" style="margin-bottom:28px;">
       <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">Ambil ulang data langsung dari penyimpanan cloud (bukan dari yang sedang tampil di layar), lalu bandingkan dengan yang ada sekarang. Berguna untuk memastikan tidak ada data yang "kelihatannya tersimpan" tapi sebenarnya gagal.</div>
@@ -1737,6 +1744,42 @@ function renderPengaturan(c){
       status.textContent="Gagal memuat: "+e.message;
     }
     btn.disabled=false; btn.textContent="Muat Ulang dari Sheets";
+  });
+  document.getElementById("ptRecalcAlokasi").addEventListener("click", async ()=>{
+    const btn=document.getElementById("ptRecalcAlokasi");
+    const resultBox=document.getElementById("ptRecalcResult");
+    btn.disabled=true; btn.textContent="Menghitung...";
+    resultBox.textContent="";
+
+    let fixedCount=0, checkedCount=0;
+    Object.keys(PEMASUKAN).forEach(dt=>{
+      const entry=PEMASUKAN[dt]; if(!entry||!entry.units) return;
+      UNITS.forEach(u=>{
+        const d=entry.units[u.key]; if(!d) return;
+        checkedCount++;
+        const lainSum=(d.lainLain||[]).reduce((s,x)=>s+(x.jumlah||0),0);
+        const totalKas=(d.kasPagi||0)+(d.kasSore||0)+(d.transferPagi||0)+(d.transferSore||0)+lainSum;
+        const a=d.alokasi||{};
+        const alokasiSum=(a.stok||0)+(a.operasional||0)+(a.investasi||0)+(a.dana_aman||0)+(a.profit||0);
+        // Kalau ada kas masuk tapi jumlah alokasinya tidak cocok (kosong/salah), hitung ulang
+        if(totalKas>0 && alokasiSum!==totalKas){
+          d.alokasi = computeAllocation(u.key, totalKas);
+          fixedCount++;
+        }
+      });
+    });
+
+    if(fixedCount>0){
+      const ok=await savePemasukan();
+      btn.disabled=false; btn.textContent="Hitung Ulang Alokasi yang Kosong";
+      resultBox.innerHTML = ok
+        ? `<span style="color:var(--moss-dark);font-weight:600;">${fixedCount} dari ${checkedCount} catatan diperbaiki</span> dan tersimpan ke Sheets.`
+        : `${fixedCount} catatan diperbaiki di layar, tapi gagal tersimpan ke Sheets — coba lagi.`;
+      showToast(`${fixedCount} alokasi diperbaiki`);
+    } else {
+      btn.disabled=false; btn.textContent="Hitung Ulang Alokasi yang Kosong";
+      resultBox.textContent = `Sudah dicek ${checkedCount} catatan, semuanya sudah sesuai — tidak ada yang perlu diperbaiki.`;
+    }
   });
   document.getElementById("ptVerify").addEventListener("click", async ()=>{
     const btn=document.getElementById("ptVerify");
