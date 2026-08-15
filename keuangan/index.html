@@ -356,7 +356,7 @@ const HDR_ALOKASI=["Unit","Kantong Stok %","Kantong Operasional %","Kantong Inve
 const HDR_RIWAYAT_ALOKASI=["Tanggal Ubah","Unit","Stok %","Operasional %","Investasi %","Dana Aman %","Profit %"];
 const HDR_KAS_MASUK=["Tanggal","Unit","Kas Pagi","Trx Pagi","Kas Sore","Trx Sore","Transfer Pagi","Trx Transfer Pagi","Transfer Sore","Trx Transfer Sore","Alokasi Stok","Alokasi Operasional","Alokasi Investasi","Alokasi Dana Aman","Alokasi Profit"];
 const HDR_PEMASUKAN_LAIN=["Tanggal","Unit","Kategori","Jumlah","Keterangan"];
-const HDR_PENGELUARAN_SHEET=["Tanggal","Unit","Kantong","Jumlah","Keterangan"];
+const HDR_PENGELUARAN_SHEET=["Tanggal","Unit","Kantong","Kategori","Jumlah","Keterangan"];
 
 function asText(v){ return "'"+v; } // paksa Google Sheets simpan sebagai teks, bukan tanggal/angka otomatis
 
@@ -567,16 +567,18 @@ function pemasukanFromRows(kasRows, lainRows, unitsList){
 }
 
 function rowsFromPengeluaran(){
-  return PENGELUARAN.map(ex=>({ "Tanggal":asText(ex.date), "Unit":unitLabel(ex.unitKey), "Kantong":(POCKET_DEFS.find(p=>p.key===ex.kantong)||{}).label||ex.kantong, "Jumlah":ex.jumlah, "Keterangan":ex.keterangan||"" }));
+  return PENGELUARAN.map(ex=>({ "Tanggal":asText(ex.date), "Unit":unitLabel(ex.unitKey), "Kantong":(POCKET_DEFS.find(p=>p.key===ex.kantong)||{}).label||ex.kantong, "Kategori":kategoriPengeluaranLabel(ex.kategori), "Jumlah":ex.jumlah, "Keterangan":ex.keterangan||"" }));
 }
 function pengeluaranFromRows(rows, unitsList){
   const byLabel=unitByLabelMap(unitsList);
   const byPocketLabel={}; POCKET_DEFS.forEach(p=>{ byPocketLabel[p.label.trim().toLowerCase()]=p.key; });
+  const byKategoriLabel={}; KATEGORI_PENGELUARAN.forEach(k=>{ byKategoriLabel[k.label.trim().toLowerCase()]=k.key; });
   return rows.map(r=>{
     const dt=normalizeDateCell(r["Tanggal"]); const unitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()];
     const kantong=byPocketLabel[String(r["Kantong"]||"").trim().toLowerCase()];
+    const kategori=byKategoriLabel[String(r["Kategori"]||"").trim().toLowerCase()] || "lainnya";
     if(!dt||!unitKey||!kantong) return null;
-    return { id:uid(), date:dt, unitKey, kantong, jumlah:Number(r["Jumlah"])||0, keterangan:r["Keterangan"]||"", createdAt:new Date().toISOString() };
+    return { id:uid(), date:dt, unitKey, kantong, kategori, jumlah:Number(r["Jumlah"])||0, keterangan:r["Keterangan"]||"", createdAt:new Date().toISOString() };
   }).filter(Boolean);
 }
 
@@ -1000,6 +1002,18 @@ const KATEGORI_LAIN = [
 ];
 function lainLabel(key){ return (KATEGORI_LAIN.find(k=>k.key===key)||{}).label || key; }
 
+const KATEGORI_PENGELUARAN = [
+  { key:"bahan_baku", label:"Bahan Baku/Stok" },
+  { key:"operasional", label:"Operasional (listrik, air, internet)" },
+  { key:"gaji", label:"Gaji/Upah" },
+  { key:"transportasi", label:"Transportasi" },
+  { key:"perawatan", label:"Perawatan/Perbaikan" },
+  { key:"marketing", label:"Marketing/Promosi" },
+  { key:"sewa", label:"Sewa" },
+  { key:"lainnya", label:"Lainnya" }
+];
+function kategoriPengeluaranLabel(key){ return (KATEGORI_PENGELUARAN.find(k=>k.key===key)||{}).label || key || "Lainnya"; }
+
 function renderPemasukan(c){
   c.innerHTML = `
     <div class="controlbar">
@@ -1210,6 +1224,7 @@ function renderPemasukan(c){
 function renderPengeluaran(c){
   const pocketOptions = POCKET_DEFS.map(p=>`<option value="${p.key}">${p.label}</option>`).join("");
   const unitOptions = `<option value="">Semua Unit</option>` + UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  const kategoriOptions = KATEGORI_PENGELUARAN.map(k=>`<option value="${k.key}">${k.label}</option>`).join("");
   c.innerHTML = `
     <div class="grid2">
       <div class="card card-pad">
@@ -1222,7 +1237,8 @@ function renderPengeluaran(c){
           <div class="field-inline"><label class="f-label">Jumlah</label>
             <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" id="pgJumlah" class="money" placeholder="0"></div>
           </div>
-          <div class="field-inline"><label class="f-label">Keterangan</label><input type="text" id="pgKeterangan" placeholder="mis. Beli kertas A4"></div>
+          <div class="field-inline"><label class="f-label">Kategori Pengeluaran</label><select id="pgKategori">${kategoriOptions}</select></div>
+          <div class="field-inline"><label class="f-label">Keterangan <span style="font-weight:400;color:var(--muted);">(detail spesifik, opsional)</span></label><input type="text" id="pgKeterangan" placeholder="mis. Kertas A4 5 rim, toko Sinar Jaya"></div>
           <button class="btn btn-primary" id="pgSimpan" style="align-self:flex-start;">Simpan Pengeluaran</button>
         </div>
       </div>
@@ -1233,7 +1249,7 @@ function renderPengeluaran(c){
     </div>
     <div class="section-title" style="margin-top:22px;">Riwayat Pengeluaran</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Tanggal</th><th>Unit</th><th>Kantong</th><th>Keterangan</th><th>Jumlah</th><th></th></tr></thead>
+      <thead><tr><th>Tanggal</th><th>Unit</th><th>Kantong</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th><th></th></tr></thead>
       <tbody id="pgHistBody"></tbody>
     </table></div>
   `;
@@ -1266,10 +1282,11 @@ function renderPengeluaran(c){
         <td class="rowdate">${dateLabel(ex.date)}</td>
         <td>${escapeHtml(unitLabel(ex.unitKey))}</td>
         <td><span class="sw" style="width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:middle;background:${POCKET_DEFS.find(p=>p.key===ex.kantong)?.color||'#999'};"></span>${escapeHtml(POCKET_DEFS.find(p=>p.key===ex.kantong)?.label||ex.kantong)}</td>
+        <td>${escapeHtml(kategoriPengeluaranLabel(ex.kategori))}</td>
         <td style="text-align:left;">${escapeHtml(ex.keterangan||"-")}</td>
         <td class="neg">${formatRupiah(ex.jumlah)}</td>
         <td><button class="btn btn-danger btn-sm" data-del="${ex.id}">Hapus</button></td>
-      </tr>`).join("") : `<tr><td colspan="6" class="empty-state">Belum ada pengeluaran tercatat.</td></tr>`;
+      </tr>`).join("") : `<tr><td colspan="7" class="empty-state">Belum ada pengeluaran tercatat.</td></tr>`;
     document.querySelectorAll("[data-del]").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         if(await customConfirm("Hapus catatan pengeluaran ini?", "Ya, Hapus")){
@@ -1287,6 +1304,7 @@ function renderPengeluaran(c){
     const unitKey=document.getElementById("pgUnit").value;
     const kantong=document.getElementById("pgKantong").value;
     const jumlah=parseMoneyInput(document.getElementById("pgJumlah").value);
+    const kategori=document.getElementById("pgKategori").value;
     const keterangan=document.getElementById("pgKeterangan").value.trim();
     if(!date){ showToast("Pilih tanggal"); return; }
     if(!unitKey){ showToast('Pilih unit tertentu dulu (tidak bisa "Semua Unit" untuk mencatat)'); return; }
@@ -1296,7 +1314,7 @@ function renderPengeluaran(c){
       const lanjut = await customConfirm(`Saldo ${POCKET_DEFS.find(p=>p.key===kantong).label} untuk ${unitLabel(unitKey)} hanya ${formatRupiah(bal)}. Tetap simpan pengeluaran ini?`, "Ya, Tetap Simpan");
       if(!lanjut) return;
     }
-    PENGELUARAN.push({ id:uid(), date, unitKey, kantong, jumlah, keterangan, createdAt:new Date().toISOString() });
+    PENGELUARAN.push({ id:uid(), date, unitKey, kantong, kategori, jumlah, keterangan, createdAt:new Date().toISOString() });
     const ok=await savePengeluaran();
     document.getElementById("pgJumlah").value=""; document.getElementById("pgKeterangan").value="";
     refreshBalancePanel(); renderHist();
