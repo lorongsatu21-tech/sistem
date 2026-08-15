@@ -731,6 +731,29 @@ function unitPocketAllocForRange(unitKey, fromDt, toDt){
   });
   return sum;
 }
+function unitPocketExpenseForDate(dt, unitKey){
+  const sum={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+  PENGELUARAN.forEach(ex=>{
+    if(ex.unitKey!==unitKey || ex.date!==dt) return;
+    sum[ex.kantong]=(sum[ex.kantong]||0)+ex.jumlah;
+  });
+  return sum;
+}
+function unitPocketExpenseForRange(unitKey, fromDt, toDt){
+  const sum={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+  PENGELUARAN.forEach(ex=>{
+    if(ex.unitKey!==unitKey) return;
+    if(ex.date<fromDt||ex.date>toDt) return;
+    sum[ex.kantong]=(sum[ex.kantong]||0)+ex.jumlah;
+  });
+  return sum;
+}
+function subtractPocketValues(a,b){
+  const r={}; POCKET_DEFS.forEach(p=>{ r[p.key]=(a[p.key]||0)-(b[p.key]||0); }); return r;
+}
+function tabsHtml(id, tabs, active){
+  return `<div class="dash-tabs" id="${id}">${tabs.map(t=>`<button class="dash-tab${t.key===active?' active':''}" data-tab="${t.key}">${t.label}</button>`).join("")}</div>`;
+}
 function renderPocketUnitTable(bodyId, footId, valuesByUnit, highlightUnit, highlightKantong){
   const rows = POCKET_DEFS.map(p=>{
     let rowTotal=0;
@@ -1186,7 +1209,7 @@ function renderPemasukan(c){
 /* ================= PENGELUARAN ================= */
 function renderPengeluaran(c){
   const pocketOptions = POCKET_DEFS.map(p=>`<option value="${p.key}">${p.label}</option>`).join("");
-  const unitOptions = UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  const unitOptions = `<option value="">Semua Unit</option>` + UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
   c.innerHTML = `
     <div class="grid2">
       <div class="card card-pad">
@@ -1217,17 +1240,24 @@ function renderPengeluaran(c){
   document.getElementById("pgTanggal").value=todayStr();
   document.getElementById("pgJumlah").addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
 
+  function aggregateBalancesAll(){
+    const bal={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+    UNITS.forEach(u=>{ const b=pocketBalances(u.key); POCKET_DEFS.forEach(p=>{ bal[p.key]+=b[p.key]; }); });
+    return bal;
+  }
   function refreshBalancePanel(){
     const unitKey=document.getElementById("pgUnit").value;
-    document.getElementById("pgUnitLabel").textContent=unitLabel(unitKey);
-    const bal=pocketBalances(unitKey);
+    document.getElementById("pgUnitLabel").textContent = unitKey ? unitLabel(unitKey) : "Semua Unit";
+    const bal = unitKey ? pocketBalances(unitKey) : aggregateBalancesAll();
     document.getElementById("pgBalanceList").innerHTML = POCKET_DEFS.map(p=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);">
         <span style="font-size:13px;display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:3px;background:${p.color};display:inline-block;"></span>${p.label}</span>
         <b style="font-size:13.5px;">${formatRupiah(bal[p.key])}</b>
       </div>`).join("");
     const kantong=document.getElementById("pgKantong").value;
-    document.getElementById("pgSaldoInfo").textContent = `Saldo ${unitLabel(unitKey)} — ${POCKET_DEFS.find(p=>p.key===kantong).label}: ${formatRupiah(bal[kantong])}`;
+    document.getElementById("pgSaldoInfo").textContent = unitKey
+      ? `Saldo ${unitLabel(unitKey)} — ${POCKET_DEFS.find(p=>p.key===kantong).label}: ${formatRupiah(bal[kantong])}`
+      : `Pilih unit tertentu untuk mencatat pengeluaran (wajib, tidak bisa "Semua Unit")`;
   }
   function renderHist(){
     const rows = [...PENGELUARAN].sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt.localeCompare(a.createdAt));
@@ -1259,6 +1289,7 @@ function renderPengeluaran(c){
     const jumlah=parseMoneyInput(document.getElementById("pgJumlah").value);
     const keterangan=document.getElementById("pgKeterangan").value.trim();
     if(!date){ showToast("Pilih tanggal"); return; }
+    if(!unitKey){ showToast('Pilih unit tertentu dulu (tidak bisa "Semua Unit" untuk mencatat)'); return; }
     if(!jumlah){ showToast("Isi jumlah pengeluaran"); return; }
     const bal=pocketBalances(unitKey)[kantong];
     if(jumlah>bal){
@@ -1406,11 +1437,12 @@ function renderRiwayat(c){
       <div class="field-inline"><label class="f-label">Sorot Kantong</label><select id="rwKantong">${kantongOptions}</select></div>
     </div>
     <div class="grid3" style="margin-bottom:18px;">
-      <div class="stat-card"><div class="label">Total Kas Masuk</div><div class="value" id="rwSumKas">Rp 0</div><div class="sub" id="rwSumDate"></div></div>
-      <div class="stat-card c-blue"><div class="label">Total Transaksi</div><div class="value" id="rwSumTrx">0</div><div class="sub">Tanggal terpilih</div></div>
+      <div class="stat-card"><div class="label">Kas Masuk</div><div class="value" id="rwSumKas">Rp 0</div><div class="sub" id="rwSumDate"></div></div>
+      <div class="stat-card c-clay"><div class="label">Kas Keluar</div><div class="value" id="rwSumExp">Rp 0</div><div class="sub">Tanggal terpilih</div></div>
       <div class="stat-card c-gold"><div class="label">&nbsp;</div><div class="value"><button class="btn btn-ghost btn-sm" id="rwOpenDate">Buka di Kas Masuk →</button></div><div class="sub">Edit catatan tanggal ini</div></div>
     </div>
-    <div class="section-title">Alokasi Kas Masuk per Kantong — per Unit</div>
+    ${tabsHtml("rwTabs",[{key:"masuk",label:"Kas Masuk"},{key:"keluar",label:"Kas Keluar"},{key:"saldo",label:"Saldo"}],"masuk")}
+    <div class="section-title" id="rwTableTitle">Alokasi Kas Masuk per Kantong — per Unit</div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Kantong</th>${UNITS.map(u=>`<th data-col="${u.key}">${escapeHtml(u.label)}</th>`).join("")}<th>Total</th></tr></thead>
       <tbody id="rwBody"></tbody>
@@ -1419,23 +1451,38 @@ function renderRiwayat(c){
   `;
   if(!dates.length){
     document.getElementById("rwBody").innerHTML = `<tr><td colspan="${UNITS.length+2}" class="empty-state">Belum ada catatan kas masuk.</td></tr>`;
-    return;
   }
+  let activeTab="masuk";
+  const TITLES={masuk:"Alokasi Kas Masuk per Kantong — per Unit", keluar:"Kas Keluar per Kantong — per Unit", saldo:"Saldo (Kas Masuk − Kas Keluar) per Kantong — per Unit, Tanggal Ini"};
   function render(){
     const dt=document.getElementById("rwTanggal").value;
     const highlightUnit=document.getElementById("rwUnit").value;
     const highlightKantong=document.getElementById("rwKantong").value;
-    const valuesByUnit={}; UNITS.forEach(u=>{ valuesByUnit[u.key]=unitPocketAllocForDate(dt,u.key); });
+    const valuesByUnit={};
+    UNITS.forEach(u=>{
+      const masuk=unitPocketAllocForDate(dt,u.key);
+      const keluar=unitPocketExpenseForDate(dt,u.key);
+      valuesByUnit[u.key] = activeTab==="masuk" ? masuk : activeTab==="keluar" ? keluar : subtractPocketValues(masuk,keluar);
+    });
+    document.getElementById("rwTableTitle").textContent=TITLES[activeTab];
     renderPocketUnitTable("rwBody","rwFoot",valuesByUnit,highlightUnit,highlightKantong);
     document.querySelectorAll("thead [data-col]").forEach(th=>{
       th.classList.toggle("col-highlight", highlightUnit===th.getAttribute("data-col"));
     });
-    let sumKas=0,sumTrx=0;
+    let sumKas=0,sumTrx=0,sumExp=0;
     UNITS.forEach(u=>{ const t=unitDayTotals(dt,u.key); sumKas+=t.kas; sumTrx+=t.trx; });
+    PENGELUARAN.forEach(ex=>{ if(ex.date===dt) sumExp+=ex.jumlah; });
     document.getElementById("rwSumKas").textContent=formatRupiah(sumKas);
-    document.getElementById("rwSumTrx").textContent=sumTrx;
-    document.getElementById("rwSumDate").textContent=dateLabel(dt);
+    document.getElementById("rwSumExp").textContent=formatRupiah(sumExp);
+    document.getElementById("rwSumDate").textContent=dt?dateLabel(dt):"";
   }
+  document.querySelectorAll("#rwTabs .dash-tab").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll("#rwTabs .dash-tab").forEach(b=>b.classList.toggle("active", b===btn));
+      activeTab=btn.getAttribute("data-tab");
+      render();
+    });
+  });
   document.getElementById("rwTanggal").addEventListener("change", render);
   document.getElementById("rwUnit").addEventListener("change", render);
   document.getElementById("rwKantong").addEventListener("change", render);
@@ -1443,7 +1490,7 @@ function renderRiwayat(c){
     pendingPemasukanDate=document.getElementById("rwTanggal").value;
     navigateTo("pemasukan");
   });
-  render();
+  if(dates.length) render();
 }
 
 /* ================= REKAP BULANAN ================= */
@@ -1461,10 +1508,11 @@ function renderRekapBulanan(c){
       <div class="field-inline"><label class="f-label">Sorot Kantong</label><select id="rbKantong">${kantongOptions}</select></div>
     </div>
     <div class="grid2" style="margin-bottom:18px;">
-      <div class="stat-card"><div class="label">Total Kas Masuk</div><div class="value" id="rbSumKas">Rp 0</div><div class="sub" id="rbSumLabel"></div></div>
-      <div class="stat-card c-clay"><div class="label">Total Pengeluaran</div><div class="value" id="rbSumExp">Rp 0</div><div class="sub">Seluruh unit & kantong</div></div>
+      <div class="stat-card"><div class="label">Kas Masuk</div><div class="value" id="rbSumKas">Rp 0</div><div class="sub" id="rbSumLabel"></div></div>
+      <div class="stat-card c-clay"><div class="label">Kas Keluar</div><div class="value" id="rbSumExp">Rp 0</div><div class="sub">Seluruh unit & kantong</div></div>
     </div>
-    <div class="section-title">Alokasi Kas Masuk per Kantong — per Unit</div>
+    ${tabsHtml("rbTabs",[{key:"masuk",label:"Kas Masuk"},{key:"keluar",label:"Kas Keluar"},{key:"saldo",label:"Saldo"}],"masuk")}
+    <div class="section-title" id="rbTableTitle">Alokasi Kas Masuk per Kantong — per Unit</div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Kantong</th>${UNITS.map(u=>`<th data-col="${u.key}">${escapeHtml(u.label)}</th>`).join("")}<th>Total</th></tr></thead>
       <tbody id="rbBody"></tbody>
@@ -1472,13 +1520,21 @@ function renderRekapBulanan(c){
     </table></div>
   `;
   document.getElementById("rbBulan").value = String(new Date().getMonth()+1);
+  let activeTab="masuk";
+  const TITLES={masuk:"Alokasi Kas Masuk per Kantong — per Unit", keluar:"Kas Keluar per Kantong — per Unit", saldo:"Saldo (Kas Masuk − Kas Keluar) per Kantong — per Unit, Bulan Ini"};
   function render(){
     const y=parseInt(document.getElementById("rbTahun").value,10);
     const m=parseInt(document.getElementById("rbBulan").value,10);
     const highlightUnit=document.getElementById("rbUnit").value;
     const highlightKantong=document.getElementById("rbKantong").value;
     const {from,to}=monthRange(y,m);
-    const valuesByUnit={}; UNITS.forEach(u=>{ valuesByUnit[u.key]=unitPocketAllocForRange(u.key,from,to); });
+    const valuesByUnit={};
+    UNITS.forEach(u=>{
+      const masuk=unitPocketAllocForRange(u.key,from,to);
+      const keluar=unitPocketExpenseForRange(u.key,from,to);
+      valuesByUnit[u.key] = activeTab==="masuk" ? masuk : activeTab==="keluar" ? keluar : subtractPocketValues(masuk,keluar);
+    });
+    document.getElementById("rbTableTitle").textContent=TITLES[activeTab];
     renderPocketUnitTable("rbBody","rbFoot",valuesByUnit,highlightUnit,highlightKantong);
     document.querySelectorAll("thead [data-col]").forEach(th=>{
       th.classList.toggle("col-highlight", highlightUnit===th.getAttribute("data-col"));
@@ -1489,6 +1545,13 @@ function renderRekapBulanan(c){
     document.getElementById("rbSumExp").textContent=formatRupiah(sumExp);
     document.getElementById("rbSumLabel").textContent=`${MONTH_NAMES[m-1]} ${y}`;
   }
+  document.querySelectorAll("#rbTabs .dash-tab").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll("#rbTabs .dash-tab").forEach(b=>b.classList.toggle("active", b===btn));
+      activeTab=btn.getAttribute("data-tab");
+      render();
+    });
+  });
   document.getElementById("rbTahun").addEventListener("change", render);
   document.getElementById("rbBulan").addEventListener("change", render);
   document.getElementById("rbUnit").addEventListener("change", render);
@@ -1511,8 +1574,22 @@ function computeMonthlyPocketMatrix(year, unitKey){
   }
   return matrix;
 }
-function renderMonthPocketTable(bodyId, footId, year, unitKey, highlightKantong){
-  const matrix = computeMonthlyPocketMatrix(year, unitKey);
+function computeMonthlyPocketExpenseMatrix(year, unitKey){
+  const matrix=[];
+  for(let m=1;m<=12;m++){
+    const {from,to}=monthRange(year,m);
+    let vals;
+    if(unitKey){ vals=unitPocketExpenseForRange(unitKey,from,to); }
+    else{
+      vals={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+      UNITS.forEach(u=>{ const a=unitPocketExpenseForRange(u.key,from,to); POCKET_DEFS.forEach(p=>{ vals[p.key]+=a[p.key]; }); });
+    }
+    matrix.push(vals);
+  }
+  return matrix;
+}
+function subtractMonthlyMatrix(matA, matB){ return matA.map((v,i)=>subtractPocketValues(v, matB[i])); }
+function renderMonthPocketTableFromMatrix(bodyId, footId, matrix, highlightKantong){
   const rows = matrix.map((vals,idx)=>{
     let rowTotal=0;
     const cells = POCKET_DEFS.map(p=>{
@@ -1544,21 +1621,28 @@ function renderRekapTahunan(c){
       <div class="field-inline"><label class="f-label">Sorot Kantong</label><select id="rtKantong">${kantongOptions}</select></div>
     </div>
     <div class="grid2" style="margin-bottom:18px;">
-      <div class="stat-card"><div class="label">Total Kas Masuk Tahun Ini</div><div class="value" id="rtSumKas">Rp 0</div><div class="sub" id="rtSumYear"></div></div>
-      <div class="stat-card c-clay"><div class="label">Total Pengeluaran Tahun Ini</div><div class="value" id="rtSumExp">Rp 0</div><div class="sub" id="rtSumUnitLabel"></div></div>
+      <div class="stat-card"><div class="label">Kas Masuk Tahun Ini</div><div class="value" id="rtSumKas">Rp 0</div><div class="sub" id="rtSumYear"></div></div>
+      <div class="stat-card c-clay"><div class="label">Kas Keluar Tahun Ini</div><div class="value" id="rtSumExp">Rp 0</div><div class="sub" id="rtSumUnitLabel"></div></div>
     </div>
-    <div class="section-title">Alokasi Kas Masuk per Bulan — per Kantong</div>
+    ${tabsHtml("rtTabs",[{key:"masuk",label:"Kas Masuk"},{key:"keluar",label:"Kas Keluar"},{key:"saldo",label:"Saldo"}],"masuk")}
+    <div class="section-title" id="rtTableTitle">Alokasi Kas Masuk per Bulan — per Kantong</div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Bulan</th>${POCKET_DEFS.map(p=>`<th data-col="${p.key}">${p.label}</th>`).join("")}<th>Total</th></tr></thead>
       <tbody id="rtBody"></tbody>
       <tfoot><tr id="rtFoot"></tr></tfoot>
     </table></div>
   `;
+  let activeTab="masuk";
+  const TITLES={masuk:"Alokasi Kas Masuk per Bulan — per Kantong", keluar:"Kas Keluar per Bulan — per Kantong", saldo:"Saldo (Kas Masuk − Kas Keluar) per Bulan — per Kantong"};
   function render(){
     const y=parseInt(document.getElementById("rtTahun").value,10);
     const unitKey=document.getElementById("rtUnit").value;
     const highlightKantong=document.getElementById("rtKantong").value;
-    renderMonthPocketTable("rtBody","rtFoot",y,unitKey,highlightKantong);
+    const matMasuk=computeMonthlyPocketMatrix(y,unitKey);
+    const matKeluar=computeMonthlyPocketExpenseMatrix(y,unitKey);
+    const matrix = activeTab==="masuk" ? matMasuk : activeTab==="keluar" ? matKeluar : subtractMonthlyMatrix(matMasuk,matKeluar);
+    document.getElementById("rtTableTitle").textContent=TITLES[activeTab];
+    renderMonthPocketTableFromMatrix("rtBody","rtFoot",matrix,highlightKantong);
     document.querySelectorAll("thead [data-col]").forEach(th=>{
       th.classList.toggle("col-highlight", highlightKantong===th.getAttribute("data-col"));
     });
@@ -1571,6 +1655,13 @@ function renderRekapTahunan(c){
     document.getElementById("rtSumYear").textContent=`Tahun ${y}`;
     document.getElementById("rtSumUnitLabel").textContent = unitKey ? unitLabel(unitKey) : "Semua unit";
   }
+  document.querySelectorAll("#rtTabs .dash-tab").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll("#rtTabs .dash-tab").forEach(b=>b.classList.toggle("active", b===btn));
+      activeTab=btn.getAttribute("data-tab");
+      render();
+    });
+  });
   document.getElementById("rtTahun").addEventListener("change", render);
   document.getElementById("rtUnit").addEventListener("change", render);
   document.getElementById("rtKantong").addEventListener("change", render);
