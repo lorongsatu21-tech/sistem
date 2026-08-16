@@ -136,6 +136,7 @@ a{color:inherit;}
   .inline-select{font-size:12px;max-width:118px;padding:4px 6px;}
 }
 td.col-highlight, th.col-highlight{background:rgba(61,92,70,0.12);font-weight:700;}
+td.val-negative{background:rgba(163,64,47,0.12);color:var(--danger);font-weight:700;}
 thead th.col-highlight{background:rgba(61,92,70,0.28);}
 .stat-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;}
 .stat-card .value{font-size:20px;font-weight:700;margin-top:5px;color:var(--ink);}
@@ -763,20 +764,22 @@ function renderPocketUnitTable(bodyId, footId, valuesByUnit, highlightUnit, high
     const cells = UNITS.map(u=>{
       const v=(valuesByUnit[u.key] && valuesByUnit[u.key][p.key])||0; rowTotal+=v;
       const colHl = highlightUnit===u.key;
-      const cls = (colHl||rowHl) ? ' class="col-highlight"' : '';
+      const classes=[]; if(colHl||rowHl) classes.push("col-highlight"); if(v<0) classes.push("val-negative");
+      const cls = classes.length ? ` class="${classes.join(" ")}"` : '';
       return `<td${cls}>${formatRupiah(v)}</td>`;
     }).join("");
     const trStyle = rowHl ? ' style="background:rgba(61,92,70,0.06);"' : '';
-    return `<tr${trStyle}><td style="display:flex;align-items:center;gap:8px;border-left:3px solid ${p.color};padding-left:9px;"><span class="sw" style="width:9px;height:9px;border-radius:3px;background:${p.color};display:inline-block;"></span>${p.label}</td>${cells}<td class="rowtotal pos">${formatRupiah(rowTotal)}</td></tr>`;
+    return `<tr${trStyle}><td style="display:flex;align-items:center;gap:8px;border-left:3px solid ${p.color};padding-left:9px;"><span class="sw" style="width:9px;height:9px;border-radius:3px;background:${p.color};display:inline-block;"></span>${p.label}</td>${cells}<td class="rowtotal ${rowTotal<0?'val-negative':'pos'}">${formatRupiah(rowTotal)}</td></tr>`;
   }).join("");
   document.getElementById(bodyId).innerHTML=rows;
   let grand=0;
   const footCells = UNITS.map(u=>{
     const t=POCKET_DEFS.reduce((s,p)=>s+((valuesByUnit[u.key]&&valuesByUnit[u.key][p.key])||0),0); grand+=t;
-    const cls = highlightUnit===u.key ? ' class="col-highlight"' : '';
+    const classes=[]; if(highlightUnit===u.key) classes.push("col-highlight"); if(t<0) classes.push("val-negative");
+    const cls = classes.length ? ` class="${classes.join(" ")}"` : '';
     return `<td${cls}>${formatRupiah(t)}</td>`;
   }).join("");
-  document.getElementById(footId).innerHTML = `<td>Total Semua Kantong</td>${footCells}<td>${formatRupiah(grand)}</td>`;
+  document.getElementById(footId).innerHTML = `<td>Total Semua Kantong</td>${footCells}<td${grand<0?' class="val-negative"':''}>${formatRupiah(grand)}</td>`;
 }
 
 function pocketBalances(unitKey){
@@ -1617,20 +1620,22 @@ function renderMonthPocketTableFromMatrix(bodyId, footId, matrix, highlightKanto
     let rowTotal=0;
     const cells = POCKET_DEFS.map(p=>{
       const v=vals[p.key]||0; rowTotal+=v;
-      const cls = highlightKantong===p.key ? ' class="col-highlight"' : '';
+      const classes=[]; if(highlightKantong===p.key) classes.push("col-highlight"); if(v<0) classes.push("val-negative");
+      const cls = classes.length ? ` class="${classes.join(" ")}"` : '';
       return `<td${cls}>${formatRupiah(v)}</td>`;
     }).join("");
-    return `<tr><td class="rowdate">${MONTH_NAMES[idx]}</td>${cells}<td class="rowtotal pos">${formatRupiah(rowTotal)}</td></tr>`;
+    return `<tr><td class="rowdate">${MONTH_NAMES[idx]}</td>${cells}<td class="rowtotal ${rowTotal<0?'val-negative':'pos'}">${formatRupiah(rowTotal)}</td></tr>`;
   }).join("");
   document.getElementById(bodyId).innerHTML = rows;
   let grand=0;
   const footCells = POCKET_DEFS.map(p=>{
     const s = matrix.reduce((sum,v)=>sum+(v[p.key]||0),0);
     grand+=s;
-    const cls = highlightKantong===p.key ? ' class="col-highlight"' : '';
+    const classes=[]; if(highlightKantong===p.key) classes.push("col-highlight"); if(s<0) classes.push("val-negative");
+    const cls = classes.length ? ` class="${classes.join(" ")}"` : '';
     return `<td${cls}>${formatRupiah(s)}</td>`;
   }).join("");
-  document.getElementById(footId).innerHTML = `<td>Total Tahun</td>${footCells}<td>${formatRupiah(grand)}</td>`;
+  document.getElementById(footId).innerHTML = `<td>Total Tahun</td>${footCells}<td${grand<0?' class="val-negative"':''}>${formatRupiah(grand)}</td>`;
 }
 function renderRekapTahunan(c){
   const years=yearsPresent();
