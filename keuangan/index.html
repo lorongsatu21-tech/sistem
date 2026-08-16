@@ -835,6 +835,20 @@ function pocketBalances(unitKey){
   PENGELUARAN.forEach(ex=>{ if(ex.unitKey===unitKey && bal[ex.kantong]!==undefined) bal[ex.kantong]-=ex.jumlah; });
   return bal;
 }
+function pocketBalancesAsOf(unitKey, cutoffDate){
+  const bal={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+  const awal=SALDO_AWAL[unitKey];
+  if(awal && (!awal.tanggal || awal.tanggal<=cutoffDate)){
+    POCKET_DEFS.forEach(p=>{ bal[p.key]+=(awal.alokasi[p.key]||0); });
+  }
+  Object.keys(PEMASUKAN).forEach(dt=>{
+    if(dt>cutoffDate) return;
+    const u=PEMASUKAN[dt].units && PEMASUKAN[dt].units[unitKey];
+    if(u && u.alokasi){ POCKET_DEFS.forEach(p=>{ bal[p.key]+=(u.alokasi[p.key]||0); }); }
+  });
+  PENGELUARAN.forEach(ex=>{ if(ex.unitKey===unitKey && ex.date<=cutoffDate && bal[ex.kantong]!==undefined) bal[ex.kantong]-=ex.jumlah; });
+  return bal;
+}
 function pocketBalanceTotal(unitKey){ const b=pocketBalances(unitKey); return POCKET_DEFS.reduce((s,p)=>s+b[p.key],0); }
 function unitIncomeInRange(unitKey, fromDt, toDt){
   let kas=0,trx=0;
@@ -1530,20 +1544,26 @@ function renderAlokasi(c){
   });
 
   function renderTutupBukuForm(){
-    const years = yearsPresent(); const curYr=String(new Date().getFullYear());
-    if(!years.includes(curYr)) years.unshift(curYr);
+    const years = new Set(yearsPresent());
+    const curYr=String(new Date().getFullYear());
+    years.add(curYr);
+    TUTUP_BUKU.forEach(t=>{ if(t.tahun) years.add(t.tahun); });
+    Object.values(SALDO_AWAL).forEach(s=>{ if(s.tanggal && s.tanggal.length>=4) years.add(s.tanggal.slice(0,4)); });
     const yearSel=document.getElementById("tbTahun");
-    yearSel.innerHTML = [...new Set(years)].sort((a,b)=>b.localeCompare(a)).map(y=>`<option value="${y}">${y}</option>`).join("");
+    yearSel.innerHTML = [...years].sort((a,b)=>b.localeCompare(a)).map(y=>`<option value="${y}">${y}</option>`).join("");
     yearSel.value = curYr;
     renderTutupBukuPreview();
     renderTutupBukuHistory();
   }
   function renderTutupBukuPreview(){
+    const tahun=document.getElementById("tbTahun").value;
+    const cutoff=`${tahun}-12-31`;
+    const isCurrentYear = tahun===String(new Date().getFullYear());
     const bal={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
-    UNITS.forEach(u=>{ const b=pocketBalances(u.key); POCKET_DEFS.forEach(p=>{ bal[p.key]+=b[p.key]; }); });
+    UNITS.forEach(u=>{ const b=pocketBalancesAsOf(u.key,cutoff); POCKET_DEFS.forEach(p=>{ bal[p.key]+=b[p.key]; }); });
     const total=POCKET_DEFS.reduce((s,p)=>s+bal[p.key],0);
     document.getElementById("tbPreview").innerHTML = `
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Saldo saat ini (semua unit digabung) — inilah yang akan tersimpan sebagai saldo akhir tahun:</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Saldo per 31 Desember ${tahun} (semua unit digabung)${isCurrentYear?' — karena tahun ini belum selesai, ini adalah saldo <b>sampai hari ini</b>':''}:</div>
       <div class="grid3">${POCKET_DEFS.map(p=>`
         <div class="pocket-card" style="border-left:4px solid ${p.color};">
           <div class="ph"><div class="name"><span class="sw" style="background:${p.color};"></span>${p.label}</div></div>
@@ -1561,11 +1581,12 @@ function renderAlokasi(c){
   }
   document.getElementById("tbSimpan").addEventListener("click", async ()=>{
     const tahun=document.getElementById("tbTahun").value;
+    const cutoff=`${tahun}-12-31`;
     const bal={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
-    UNITS.forEach(u=>{ const b=pocketBalances(u.key); POCKET_DEFS.forEach(p=>{ bal[p.key]+=b[p.key]; }); });
+    UNITS.forEach(u=>{ const b=pocketBalancesAsOf(u.key,cutoff); POCKET_DEFS.forEach(p=>{ bal[p.key]+=b[p.key]; }); });
     const existing=TUTUP_BUKU.find(t=>t.tahun===tahun);
     if(existing){
-      if(!(await customConfirm(`Sudah ada catatan tutup buku untuk tahun ${tahun}. Timpa dengan saldo saat ini?`,"Ya, Timpa"))) return;
+      if(!(await customConfirm(`Sudah ada catatan tutup buku untuk tahun ${tahun}. Timpa dengan saldo terbaru?`,"Ya, Timpa"))) return;
       existing.saldo=bal; existing.savedAt=new Date().toISOString();
     } else {
       TUTUP_BUKU.push({ tahun, saldo:bal, savedAt:new Date().toISOString() });
