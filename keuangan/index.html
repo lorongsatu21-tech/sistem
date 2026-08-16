@@ -352,7 +352,7 @@ const sheetsConfigured = true;
 
 const SHEET_UNIT="Unit", SHEET_ALOKASI="Alokasi Kantong", SHEET_RIWAYAT_ALOKASI="Riwayat Alokasi",
       SHEET_KAS_MASUK="Kas Masuk", SHEET_PEMASUKAN_LAIN="Pemasukan Lain", SHEET_PENGELUARAN="Pengeluaran",
-      SHEET_SALDO_AWAL="Saldo Awal";
+      SHEET_SALDO_AWAL="Saldo Awal", SHEET_TUTUP_BUKU="Tutup Buku";
 const HDR_UNIT=["Kode Internal","Nama Unit"];
 const HDR_ALOKASI=["Unit","Kantong Stok %","Kantong Operasional %","Kantong Investasi %","Kantong Dana Aman %","Kantong Profit %"];
 const HDR_RIWAYAT_ALOKASI=["Tanggal Ubah","Unit","Stok %","Operasional %","Investasi %","Dana Aman %","Profit %"];
@@ -360,6 +360,7 @@ const HDR_KAS_MASUK=["Tanggal","Unit","Kas Pagi","Trx Pagi","Kas Sore","Trx Sore
 const HDR_PEMASUKAN_LAIN=["Tanggal","Unit","Kategori","Jumlah","Keterangan"];
 const HDR_PENGELUARAN_SHEET=["Tanggal","Unit","Kantong","Kategori","Jumlah","Keterangan"];
 const HDR_SALDO_AWAL=["Unit","Tanggal","Total","Alokasi Stok","Alokasi Operasional","Alokasi Investasi","Alokasi Dana Aman","Alokasi Profit"];
+const HDR_TUTUP_BUKU=["Tahun","Saldo Stok","Saldo Operasional","Saldo Investasi","Saldo Dana Aman","Saldo Profit"];
 
 function asText(v){ return "'"+v; } // paksa Google Sheets simpan sebagai teks, bukan tanggal/angka otomatis
 
@@ -608,6 +609,20 @@ async function saveSaldoAwal(){
   return sheetsConfigured ? sheetsReplaceAll(SHEET_SALDO_AWAL, HDR_SALDO_AWAL, rowsFromSaldoAwal()) : true;
 }
 
+function rowsFromTutupBuku(){
+  return TUTUP_BUKU.map(t=>({ "Tahun":asText(t.tahun), "Saldo Stok":t.saldo.stok||0, "Saldo Operasional":t.saldo.operasional||0, "Saldo Investasi":t.saldo.investasi||0, "Saldo Dana Aman":t.saldo.dana_aman||0, "Saldo Profit":t.saldo.profit||0 }));
+}
+function tutupBukuFromRows(rows){
+  return rows.map(r=>({
+    tahun:String(r["Tahun"]||"").replace(/^'/,""),
+    saldo:{ stok:Number(r["Saldo Stok"])||0, operasional:Number(r["Saldo Operasional"])||0, investasi:Number(r["Saldo Investasi"])||0, dana_aman:Number(r["Saldo Dana Aman"])||0, profit:Number(r["Saldo Profit"])||0 },
+    savedAt:new Date().toISOString()
+  })).filter(t=>t.tahun);
+}
+async function saveTutupBuku(){
+  return sheetsConfigured ? sheetsReplaceAll(SHEET_TUTUP_BUKU, HDR_TUTUP_BUKU, rowsFromTutupBuku()) : true;
+}
+
 /* ---- fungsi simpan per-entitas (Sheets kalau tersedia) ---- */
 async function saveUnitsAndPct(){
   if(!sheetsConfigured) return storageSet(K_UNITS,UNITS) && storageSet(K_PCT,PCT_CONFIG);
@@ -663,6 +678,7 @@ let PCT_HISTORY = [];      // [{id, unitKey, config, savedAt}]
 let PEMASUKAN = {};        // { date: { units: { unitKey: {kasPagi,trxPagi,kasSore,trxSore,alokasi} } } }
 let PENGELUARAN = [];      // [{id,date,unitKey,kantong,jumlah,keterangan,createdAt}]
 let SALDO_AWAL = {};       // { unitKey: {total, tanggal, alokasi:{stok,...}, savedAt} }
+let TUTUP_BUKU = [];       // [{tahun, saldo:{stok,...}, savedAt}] — saldo gabungan semua unit per kantong
 
 /* ================= UTILS ================= */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -1413,14 +1429,33 @@ function renderAlokasi(c){
     </div>
     <div class="card card-pad" style="margin-bottom:24px;">
       <div class="section-title">Saldo Awal (Sebelum Pakai Aplikasi)</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Kalau sebelum pakai aplikasi ini sudah ada sisa saldo kas (misalnya sisa tahun lalu), masukkan totalnya di sini — <b>sekali saja per unit</b>. Sistem akan membaginya ke 5 kantong pakai persentase yang berlaku sekarang untuk unit ini, dan totalnya <b>tidak</b> ikut dihitung sebagai "Kas Masuk" di laporan (supaya tidak mengembungkan angka pendapatan).</div>
-      <div class="field-inline" style="max-width:280px;margin-bottom:10px;"><label class="f-label">Tanggal Saldo Awal</label><input type="date" id="akSaldoTanggal"></div>
-      <div class="field-inline" style="max-width:280px;margin-bottom:12px;"><label class="f-label">Total Saldo Awal</label>
-        <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" id="akSaldoTotal" placeholder="0"></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Kalau sebelum pakai aplikasi ini sudah ada sisa saldo kas (misalnya sisa tahun lalu), masukkan langsung <b>per kantong</b> di sini — sekali saja per unit. Totalnya <b>tidak</b> ikut dihitung sebagai "Kas Masuk" di laporan (supaya tidak mengembungkan angka pendapatan).</div>
+      <div class="field-inline" style="max-width:280px;margin-bottom:14px;"><label class="f-label">Tanggal Saldo Awal</label><input type="date" id="akSaldoTanggal"></div>
+
+      <div id="akSaldoPerKantong"></div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0;">
+        <div class="input-money" style="max-width:200px;"><span>Rp</span><input type="text" inputmode="numeric" class="money" id="akSaldoTotalHelper" placeholder="Total (opsional)"></div>
+        <button class="btn btn-ghost btn-sm" id="akSaldoBagiOtomatis">Bagi Otomatis ke 5 Kantong →</button>
       </div>
-      <div id="akSaldoPreview" style="font-size:12.5px;color:var(--muted);margin-bottom:12px;"></div>
+      <div id="akSaldoSumNote" style="font-size:12.5px;font-weight:600;margin-bottom:12px;"></div>
       <button class="btn btn-primary" id="akSaldoSave">Simpan Saldo Awal</button>
       <span id="akSaldoStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
+    </div>
+
+    <div class="card card-pad" style="margin-bottom:24px;">
+      <div class="section-title">Tutup Buku Tahun Ini</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Di penghujung tahun, catat saldo akhir tiap kantong sebagai riwayat permanen — untuk dokumentasi resmi, dan bisa jadi acuan saat mengisi Saldo Awal tahun berikutnya.</div>
+      <div class="field-inline" style="max-width:160px;margin-bottom:14px;"><label class="f-label">Tahun</label><select id="tbTahun"></select></div>
+      <div id="tbPreview" style="margin-bottom:14px;"></div>
+      <button class="btn btn-primary" id="tbSimpan">Simpan sebagai Saldo Akhir Tahun</button>
+      <span id="tbStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
+
+      <div class="section-title" style="margin-top:22px;">Riwayat Tutup Buku</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Tahun</th><th>Kantong Stok</th><th>Kantong Operasional</th><th>Kantong Investasi</th><th>Kantong Dana Aman</th><th>Kantong Profit</th><th>Total</th></tr></thead>
+        <tbody id="tbHistBody"></tbody>
+      </table></div>
     </div>
 
     <div class="card card-pad">
@@ -1442,21 +1477,44 @@ function renderAlokasi(c){
     const unitKey=document.getElementById("akUnit").value;
     const existing=SALDO_AWAL[unitKey];
     document.getElementById("akSaldoTanggal").value = existing ? existing.tanggal : todayStr();
-    document.getElementById("akSaldoTotal").value = existing && existing.total ? existing.total.toLocaleString("id-ID") : "";
-    updateSaldoPreview();
+    const a = (existing && existing.alokasi) || {stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+    document.getElementById("akSaldoPerKantong").innerHTML = POCKET_DEFS.map(p=>`
+      <div class="pct-row">
+        <div class="pname"><span class="sw" style="background:${p.color};"></span>${p.label}</div>
+        <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-saldo-kantong="${p.key}" value="${a[p.key]?a[p.key].toLocaleString('id-ID'):''}" placeholder="0"></div>
+      </div>`).join("");
+    document.getElementById("akSaldoTotalHelper").value="";
+    document.querySelectorAll("[data-saldo-kantong]").forEach(inp=>{
+      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; updateSaldoSumNote(); });
+    });
+    updateSaldoSumNote();
   }
-  function updateSaldoPreview(){
+  function currentSaldoKantongValues(){
+    const r={}; document.querySelectorAll("[data-saldo-kantong]").forEach(inp=>{ r[inp.getAttribute("data-saldo-kantong")]=parseMoneyInput(inp.value); }); return r;
+  }
+  function updateSaldoSumNote(){
+    const vals=currentSaldoKantongValues(); const sum=POCKET_DEFS.reduce((s,p)=>s+(vals[p.key]||0),0);
+    const el=document.getElementById("akSaldoSumNote");
+    el.textContent = sum>0 ? `Total saldo awal: ${formatRupiah(sum)}` : "Belum ada saldo awal diisi untuk unit ini.";
+    el.style.color = "var(--moss-dark)";
+  }
+  document.getElementById("akSaldoTotalHelper").addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
+  document.getElementById("akSaldoBagiOtomatis").addEventListener("click", ()=>{
     const unitKey=document.getElementById("akUnit").value;
-    const total=parseMoneyInput(document.getElementById("akSaldoTotal").value);
-    if(!total){ document.getElementById("akSaldoPreview").textContent = SALDO_AWAL[unitKey] ? "Belum ada perubahan — saldo awal saat ini akan tetap." : "Belum ada saldo awal untuk unit ini."; return; }
+    const total=parseMoneyInput(document.getElementById("akSaldoTotalHelper").value);
+    if(!total){ showToast("Isi dulu total di kotak sebelah tombol"); return; }
     const alloc=computeAllocation(unitKey,total);
-    document.getElementById("akSaldoPreview").innerHTML = `Akan dibagi jadi: ${POCKET_DEFS.map(p=>`<b>${p.label.replace('Kantong ','')} ${formatRupiah(alloc[p.key])}</b>`).join(" · ")}`;
-  }
-  document.getElementById("akSaldoTotal").addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; updateSaldoPreview(); });
+    document.querySelectorAll("[data-saldo-kantong]").forEach(inp=>{
+      const k=inp.getAttribute("data-saldo-kantong"); inp.value=alloc[k]?alloc[k].toLocaleString("id-ID"):"";
+    });
+    updateSaldoSumNote();
+    showToast("Terbagi otomatis — boleh disesuaikan manual sebelum disimpan");
+  });
   document.getElementById("akSaldoSave").addEventListener("click", async ()=>{
     const unitKey=document.getElementById("akUnit").value;
-    const total=parseMoneyInput(document.getElementById("akSaldoTotal").value);
     const tanggal=document.getElementById("akSaldoTanggal").value;
+    const alokasi=currentSaldoKantongValues();
+    const total=POCKET_DEFS.reduce((s,p)=>s+(alokasi[p.key]||0),0);
     if(!total){
       if(SALDO_AWAL[unitKey] && await customConfirm("Kosongkan saldo awal untuk unit ini?","Ya, Kosongkan")){
         delete SALDO_AWAL[unitKey];
@@ -1465,11 +1523,59 @@ function renderAlokasi(c){
       }
       return;
     }
-    SALDO_AWAL[unitKey] = { total, tanggal, alokasi: computeAllocation(unitKey,total), savedAt:new Date().toISOString() };
+    SALDO_AWAL[unitKey] = { total, tanggal, alokasi, savedAt:new Date().toISOString() };
     const ok=await saveSaldoAwal();
     document.getElementById("akSaldoStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Tersimpan lokal (sinkron gagal)";
     showToast("Saldo awal tersimpan");
   });
+
+  function renderTutupBukuForm(){
+    const years = yearsPresent(); const curYr=String(new Date().getFullYear());
+    if(!years.includes(curYr)) years.unshift(curYr);
+    const yearSel=document.getElementById("tbTahun");
+    yearSel.innerHTML = [...new Set(years)].sort((a,b)=>b.localeCompare(a)).map(y=>`<option value="${y}">${y}</option>`).join("");
+    yearSel.value = curYr;
+    renderTutupBukuPreview();
+    renderTutupBukuHistory();
+  }
+  function renderTutupBukuPreview(){
+    const bal={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+    UNITS.forEach(u=>{ const b=pocketBalances(u.key); POCKET_DEFS.forEach(p=>{ bal[p.key]+=b[p.key]; }); });
+    const total=POCKET_DEFS.reduce((s,p)=>s+bal[p.key],0);
+    document.getElementById("tbPreview").innerHTML = `
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Saldo saat ini (semua unit digabung) — inilah yang akan tersimpan sebagai saldo akhir tahun:</div>
+      <div class="grid3">${POCKET_DEFS.map(p=>`
+        <div class="pocket-card" style="border-left:4px solid ${p.color};">
+          <div class="ph"><div class="name"><span class="sw" style="background:${p.color};"></span>${p.label}</div></div>
+          <div class="amount">${formatRupiah(bal[p.key])}</div>
+        </div>`).join("")}</div>
+      <div style="font-size:13px;font-weight:700;color:var(--moss-dark);margin-top:10px;">Total: ${formatRupiah(total)}</div>
+    `;
+  }
+  function renderTutupBukuHistory(){
+    const rows=[...TUTUP_BUKU].sort((a,b)=>b.tahun.localeCompare(a.tahun));
+    document.getElementById("tbHistBody").innerHTML = rows.length ? rows.map(t=>{
+      const total=POCKET_DEFS.reduce((s,p)=>s+(t.saldo[p.key]||0),0);
+      return `<tr><td class="rowdate">${t.tahun}</td>${POCKET_DEFS.map(p=>`<td>${formatRupiah(t.saldo[p.key]||0)}</td>`).join("")}<td class="rowtotal pos">${formatRupiah(total)}</td></tr>`;
+    }).join("") : `<tr><td colspan="7" class="empty-state">Belum ada riwayat tutup buku.</td></tr>`;
+  }
+  document.getElementById("tbSimpan").addEventListener("click", async ()=>{
+    const tahun=document.getElementById("tbTahun").value;
+    const bal={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+    UNITS.forEach(u=>{ const b=pocketBalances(u.key); POCKET_DEFS.forEach(p=>{ bal[p.key]+=b[p.key]; }); });
+    const existing=TUTUP_BUKU.find(t=>t.tahun===tahun);
+    if(existing){
+      if(!(await customConfirm(`Sudah ada catatan tutup buku untuk tahun ${tahun}. Timpa dengan saldo saat ini?`,"Ya, Timpa"))) return;
+      existing.saldo=bal; existing.savedAt=new Date().toISOString();
+    } else {
+      TUTUP_BUKU.push({ tahun, saldo:bal, savedAt:new Date().toISOString() });
+    }
+    const ok=await saveTutupBuku();
+    document.getElementById("tbStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Tersimpan lokal (sinkron gagal)";
+    renderTutupBukuHistory();
+    showToast(`Saldo akhir tahun ${tahun} tersimpan`);
+  });
+  document.getElementById("tbTahun").addEventListener("change", renderTutupBukuPreview);
 
   function renderPctForm(){
     const unitKey=document.getElementById("akUnit").value;
@@ -1520,7 +1626,7 @@ function renderAlokasi(c){
     else { showToast((ok1&&ok2)?"Persentase alokasi disimpan":"Tersimpan lokal (sinkron gagal)"); }
   });
 
-  renderPctForm(); renderPctHistory(); renderSaldoAwalForm();
+  renderPctForm(); renderPctHistory(); renderSaldoAwalForm(); renderTutupBukuForm();
 }
 
 /* ================= RIWAYAT HARIAN ================= */
@@ -2122,6 +2228,7 @@ function renderPengaturan(c){
       [SHEET_ALOKASI, rowsFromPctConfig()],
       [SHEET_RIWAYAT_ALOKASI, rowsFromPctHistory()],
       [SHEET_SALDO_AWAL, rowsFromSaldoAwal()],
+      [SHEET_TUTUP_BUKU, rowsFromTutupBuku()],
       [SHEET_KAS_MASUK, rowsFromPemasukan()],
       [SHEET_PEMASUKAN_LAIN, rowsFromPemasukanLain()],
       [SHEET_PENGELUARAN, rowsFromPengeluaran()]
@@ -2222,10 +2329,10 @@ function renderPengaturan(c){
 
 /* ================= INIT ================= */
 async function loadFromSheets(){
-  const [unitRows, pctRows, histRows, kasRows, lainRows, pengRows, saldoAwalRows] = await Promise.all([
+  const [unitRows, pctRows, histRows, kasRows, lainRows, pengRows, saldoAwalRows, tutupBukuRows] = await Promise.all([
     sheetsGetAll(SHEET_UNIT), sheetsGetAll(SHEET_ALOKASI), sheetsGetAll(SHEET_RIWAYAT_ALOKASI),
     sheetsGetAll(SHEET_KAS_MASUK), sheetsGetAll(SHEET_PEMASUKAN_LAIN), sheetsGetAll(SHEET_PENGELUARAN),
-    sheetsGetAll(SHEET_SALDO_AWAL)
+    sheetsGetAll(SHEET_SALDO_AWAL), sheetsGetAll(SHEET_TUTUP_BUKU)
   ]);
   if(unitRows===null) return false; // gagal total, biar fallback ke penyimpanan lama
 
@@ -2236,6 +2343,7 @@ async function loadFromSheets(){
   PEMASUKAN = pemasukanFromRows(kasRows||[], lainRows||[], UNITS);
   PENGELUARAN = pengeluaranFromRows(pengRows||[], UNITS);
   SALDO_AWAL = saldoAwalFromRows(saldoAwalRows||[], UNITS);
+  TUTUP_BUKU = tutupBukuFromRows(tutupBukuRows||[]);
 
   if(!unitRows.length){
     // Sheet baru/kosong: kirim unit & persentase default sekali di awal supaya tab-nya terisi
