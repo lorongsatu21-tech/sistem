@@ -351,13 +351,15 @@ const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 const sheetsConfigured = true;
 
 const SHEET_UNIT="Unit", SHEET_ALOKASI="Alokasi Kantong", SHEET_RIWAYAT_ALOKASI="Riwayat Alokasi",
-      SHEET_KAS_MASUK="Kas Masuk", SHEET_PEMASUKAN_LAIN="Pemasukan Lain", SHEET_PENGELUARAN="Pengeluaran";
+      SHEET_KAS_MASUK="Kas Masuk", SHEET_PEMASUKAN_LAIN="Pemasukan Lain", SHEET_PENGELUARAN="Pengeluaran",
+      SHEET_SALDO_AWAL="Saldo Awal";
 const HDR_UNIT=["Kode Internal","Nama Unit"];
 const HDR_ALOKASI=["Unit","Kantong Stok %","Kantong Operasional %","Kantong Investasi %","Kantong Dana Aman %","Kantong Profit %"];
 const HDR_RIWAYAT_ALOKASI=["Tanggal Ubah","Unit","Stok %","Operasional %","Investasi %","Dana Aman %","Profit %"];
 const HDR_KAS_MASUK=["Tanggal","Unit","Kas Pagi","Trx Pagi","Kas Sore","Trx Sore","Transfer Pagi","Trx Transfer Pagi","Transfer Sore","Trx Transfer Sore","Alokasi Stok","Alokasi Operasional","Alokasi Investasi","Alokasi Dana Aman","Alokasi Profit"];
 const HDR_PEMASUKAN_LAIN=["Tanggal","Unit","Kategori","Jumlah","Keterangan"];
 const HDR_PENGELUARAN_SHEET=["Tanggal","Unit","Kantong","Kategori","Jumlah","Keterangan"];
+const HDR_SALDO_AWAL=["Unit","Tanggal","Total","Alokasi Stok","Alokasi Operasional","Alokasi Investasi","Alokasi Dana Aman","Alokasi Profit"];
 
 function asText(v){ return "'"+v; } // paksa Google Sheets simpan sebagai teks, bukan tanggal/angka otomatis
 
@@ -583,6 +585,29 @@ function pengeluaranFromRows(rows, unitsList){
   }).filter(Boolean);
 }
 
+function rowsFromSaldoAwal(){
+  return UNITS.filter(u=>SALDO_AWAL[u.key]).map(u=>{
+    const s=SALDO_AWAL[u.key]; const a=s.alokasi||{};
+    return { "Unit":u.label, "Tanggal":asText(s.tanggal||""), "Total":s.total||0,
+      "Alokasi Stok":a.stok||0, "Alokasi Operasional":a.operasional||0, "Alokasi Investasi":a.investasi||0, "Alokasi Dana Aman":a.dana_aman||0, "Alokasi Profit":a.profit||0 };
+  });
+}
+function saldoAwalFromRows(rows, unitsList){
+  const byLabel=unitByLabelMap(unitsList); const result={};
+  rows.forEach(r=>{
+    const key=byLabel[String(r["Unit"]||"").trim().toLowerCase()]; if(!key) return;
+    result[key] = {
+      total:Number(r["Total"])||0,
+      tanggal:normalizeDateCell(r["Tanggal"])||String(r["Tanggal"]||""),
+      alokasi:{ stok:Number(r["Alokasi Stok"])||0, operasional:Number(r["Alokasi Operasional"])||0, investasi:Number(r["Alokasi Investasi"])||0, dana_aman:Number(r["Alokasi Dana Aman"])||0, profit:Number(r["Alokasi Profit"])||0 }
+    };
+  });
+  return result;
+}
+async function saveSaldoAwal(){
+  return sheetsConfigured ? sheetsReplaceAll(SHEET_SALDO_AWAL, HDR_SALDO_AWAL, rowsFromSaldoAwal()) : true;
+}
+
 /* ---- fungsi simpan per-entitas (Sheets kalau tersedia) ---- */
 async function saveUnitsAndPct(){
   if(!sheetsConfigured) return storageSet(K_UNITS,UNITS) && storageSet(K_PCT,PCT_CONFIG);
@@ -637,6 +662,7 @@ let PCT_CONFIG = {};       // { unitKey: {stok,operasional,investasi,dana_aman,p
 let PCT_HISTORY = [];      // [{id, unitKey, config, savedAt}]
 let PEMASUKAN = {};        // { date: { units: { unitKey: {kasPagi,trxPagi,kasSore,trxSore,alokasi} } } }
 let PENGELUARAN = [];      // [{id,date,unitKey,kantong,jumlah,keterangan,createdAt}]
+let SALDO_AWAL = {};       // { unitKey: {total, tanggal, alokasi:{stok,...}, savedAt} }
 
 /* ================= UTILS ================= */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -784,6 +810,8 @@ function renderPocketUnitTable(bodyId, footId, valuesByUnit, highlightUnit, high
 
 function pocketBalances(unitKey){
   const bal={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+  const awal=SALDO_AWAL[unitKey] && SALDO_AWAL[unitKey].alokasi;
+  if(awal){ POCKET_DEFS.forEach(p=>{ bal[p.key]+=(awal[p.key]||0); }); }
   Object.keys(PEMASUKAN).forEach(dt=>{
     const u=PEMASUKAN[dt].units && PEMASUKAN[dt].units[unitKey];
     if(u && u.alokasi){ POCKET_DEFS.forEach(p=>{ bal[p.key]+=(u.alokasi[p.key]||0); }); }
@@ -1383,6 +1411,18 @@ function renderAlokasi(c){
     <div class="controlbar">
       <div class="field-inline"><label class="f-label">Unit</label><select id="akUnit">${unitOptions}</select></div>
     </div>
+    <div class="card card-pad" style="margin-bottom:24px;">
+      <div class="section-title">Saldo Awal (Sebelum Pakai Aplikasi)</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Kalau sebelum pakai aplikasi ini sudah ada sisa saldo kas (misalnya sisa tahun lalu), masukkan totalnya di sini — <b>sekali saja per unit</b>. Sistem akan membaginya ke 5 kantong pakai persentase yang berlaku sekarang untuk unit ini, dan totalnya <b>tidak</b> ikut dihitung sebagai "Kas Masuk" di laporan (supaya tidak mengembungkan angka pendapatan).</div>
+      <div class="field-inline" style="max-width:280px;margin-bottom:10px;"><label class="f-label">Tanggal Saldo Awal</label><input type="date" id="akSaldoTanggal"></div>
+      <div class="field-inline" style="max-width:280px;margin-bottom:12px;"><label class="f-label">Total Saldo Awal</label>
+        <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" id="akSaldoTotal" placeholder="0"></div>
+      </div>
+      <div id="akSaldoPreview" style="font-size:12.5px;color:var(--muted);margin-bottom:12px;"></div>
+      <button class="btn btn-primary" id="akSaldoSave">Simpan Saldo Awal</button>
+      <span id="akSaldoStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
+    </div>
+
     <div class="card card-pad">
       <div class="section-title">Persentase Alokasi Otomatis</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Persentase berlaku saat kas masuk baru disimpan. Perubahan di sini <b>tidak mengubah</b> alokasi yang sudah tercatat sebelumnya — cocok untuk penyesuaian berkala tiap 6 bulan atau tiap tahun.</div>
@@ -1397,6 +1437,39 @@ function renderAlokasi(c){
       <tbody id="akHistBody"></tbody>
     </table></div>
   `;
+
+  function renderSaldoAwalForm(){
+    const unitKey=document.getElementById("akUnit").value;
+    const existing=SALDO_AWAL[unitKey];
+    document.getElementById("akSaldoTanggal").value = existing ? existing.tanggal : todayStr();
+    document.getElementById("akSaldoTotal").value = existing && existing.total ? existing.total.toLocaleString("id-ID") : "";
+    updateSaldoPreview();
+  }
+  function updateSaldoPreview(){
+    const unitKey=document.getElementById("akUnit").value;
+    const total=parseMoneyInput(document.getElementById("akSaldoTotal").value);
+    if(!total){ document.getElementById("akSaldoPreview").textContent = SALDO_AWAL[unitKey] ? "Belum ada perubahan — saldo awal saat ini akan tetap." : "Belum ada saldo awal untuk unit ini."; return; }
+    const alloc=computeAllocation(unitKey,total);
+    document.getElementById("akSaldoPreview").innerHTML = `Akan dibagi jadi: ${POCKET_DEFS.map(p=>`<b>${p.label.replace('Kantong ','')} ${formatRupiah(alloc[p.key])}</b>`).join(" · ")}`;
+  }
+  document.getElementById("akSaldoTotal").addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; updateSaldoPreview(); });
+  document.getElementById("akSaldoSave").addEventListener("click", async ()=>{
+    const unitKey=document.getElementById("akUnit").value;
+    const total=parseMoneyInput(document.getElementById("akSaldoTotal").value);
+    const tanggal=document.getElementById("akSaldoTanggal").value;
+    if(!total){
+      if(SALDO_AWAL[unitKey] && await customConfirm("Kosongkan saldo awal untuk unit ini?","Ya, Kosongkan")){
+        delete SALDO_AWAL[unitKey];
+        await saveSaldoAwal();
+        showToast("Saldo awal dikosongkan");
+      }
+      return;
+    }
+    SALDO_AWAL[unitKey] = { total, tanggal, alokasi: computeAllocation(unitKey,total), savedAt:new Date().toISOString() };
+    const ok=await saveSaldoAwal();
+    document.getElementById("akSaldoStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Tersimpan lokal (sinkron gagal)";
+    showToast("Saldo awal tersimpan");
+  });
 
   function renderPctForm(){
     const unitKey=document.getElementById("akUnit").value;
@@ -1428,7 +1501,7 @@ function renderAlokasi(c){
     `).join("") : `<tr><td colspan="7" class="empty-state">Belum ada perubahan alokasi untuk unit ini.</td></tr>`;
   }
 
-  document.getElementById("akUnit").addEventListener("change", ()=>{ renderPctForm(); renderPctHistory(); });
+  document.getElementById("akUnit").addEventListener("change", ()=>{ renderPctForm(); renderPctHistory(); renderSaldoAwalForm(); });
   document.getElementById("akPctSave").addEventListener("click", async ()=>{
     const unitKey=document.getElementById("akUnit").value;
     const vals=currentPctValues(); const sum=Object.values(vals).reduce((a,b)=>a+b,0);
@@ -1447,7 +1520,7 @@ function renderAlokasi(c){
     else { showToast((ok1&&ok2)?"Persentase alokasi disimpan":"Tersimpan lokal (sinkron gagal)"); }
   });
 
-  renderPctForm(); renderPctHistory();
+  renderPctForm(); renderPctHistory(); renderSaldoAwalForm();
 }
 
 /* ================= RIWAYAT HARIAN ================= */
@@ -2048,6 +2121,7 @@ function renderPengaturan(c){
       [SHEET_UNIT, rowsFromUnits()],
       [SHEET_ALOKASI, rowsFromPctConfig()],
       [SHEET_RIWAYAT_ALOKASI, rowsFromPctHistory()],
+      [SHEET_SALDO_AWAL, rowsFromSaldoAwal()],
       [SHEET_KAS_MASUK, rowsFromPemasukan()],
       [SHEET_PEMASUKAN_LAIN, rowsFromPemasukanLain()],
       [SHEET_PENGELUARAN, rowsFromPengeluaran()]
@@ -2148,9 +2222,10 @@ function renderPengaturan(c){
 
 /* ================= INIT ================= */
 async function loadFromSheets(){
-  const [unitRows, pctRows, histRows, kasRows, lainRows, pengRows] = await Promise.all([
+  const [unitRows, pctRows, histRows, kasRows, lainRows, pengRows, saldoAwalRows] = await Promise.all([
     sheetsGetAll(SHEET_UNIT), sheetsGetAll(SHEET_ALOKASI), sheetsGetAll(SHEET_RIWAYAT_ALOKASI),
-    sheetsGetAll(SHEET_KAS_MASUK), sheetsGetAll(SHEET_PEMASUKAN_LAIN), sheetsGetAll(SHEET_PENGELUARAN)
+    sheetsGetAll(SHEET_KAS_MASUK), sheetsGetAll(SHEET_PEMASUKAN_LAIN), sheetsGetAll(SHEET_PENGELUARAN),
+    sheetsGetAll(SHEET_SALDO_AWAL)
   ]);
   if(unitRows===null) return false; // gagal total, biar fallback ke penyimpanan lama
 
@@ -2160,6 +2235,7 @@ async function loadFromSheets(){
   PCT_HISTORY = pctHistoryFromRows(histRows||[], UNITS);
   PEMASUKAN = pemasukanFromRows(kasRows||[], lainRows||[], UNITS);
   PENGELUARAN = pengeluaranFromRows(pengRows||[], UNITS);
+  SALDO_AWAL = saldoAwalFromRows(saldoAwalRows||[], UNITS);
 
   if(!unitRows.length){
     // Sheet baru/kosong: kirim unit & persentase default sekali di awal supaya tab-nya terisi
