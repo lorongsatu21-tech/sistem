@@ -1282,7 +1282,7 @@ function renderPemasukan(c){
     PEMASUKAN[dt]={ units:withAlloc, savedAt:new Date().toISOString() };
     const ok=await savePemasukan();
     markSaved();
-    showToast(ok?"Catatan tersimpan":"Tersimpan lokal (sinkron gagal)");
+    showToast(ok?"Catatan tersimpan":"Gagal tersimpan ke Sheets — coba lagi, atau login ulang kalau berulang");
   });
 }
 
@@ -1384,7 +1384,7 @@ function renderPengeluaran(c){
     const ok=await savePengeluaran();
     document.getElementById("pgJumlah").value=""; document.getElementById("pgKeterangan").value="";
     refreshBalancePanel(); renderHist();
-    showToast(ok?"Pengeluaran tersimpan":"Tersimpan lokal (sinkron gagal)");
+    showToast(ok?"Pengeluaran tersimpan":"Gagal tersimpan ke Sheets — coba lagi, atau login ulang kalau berulang");
   });
 
   refreshBalancePanel(); renderHist();
@@ -1539,7 +1539,7 @@ function renderAlokasi(c){
     }
     SALDO_AWAL[unitKey] = { total, tanggal, alokasi, savedAt:new Date().toISOString() };
     const ok=await saveSaldoAwal();
-    document.getElementById("akSaldoStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Tersimpan lokal (sinkron gagal)";
+    document.getElementById("akSaldoStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Gagal tersimpan ke Sheets — coba lagi, atau login ulang kalau berulang";
     showToast("Saldo awal tersimpan");
   });
 
@@ -1592,7 +1592,7 @@ function renderAlokasi(c){
       TUTUP_BUKU.push({ tahun, saldo:bal, savedAt:new Date().toISOString() });
     }
     const ok=await saveTutupBuku();
-    document.getElementById("tbStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Tersimpan lokal (sinkron gagal)";
+    document.getElementById("tbStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Gagal tersimpan ke Sheets — coba lagi, atau login ulang kalau berulang";
     renderTutupBukuHistory();
     showToast(`Saldo akhir tahun ${tahun} tersimpan`);
   });
@@ -1644,7 +1644,7 @@ function renderAlokasi(c){
     }
     renderPctHistory();
     if(!changed){ showToast("Tidak ada perubahan nilai"); }
-    else { showToast((ok1&&ok2)?"Persentase alokasi disimpan":"Tersimpan lokal (sinkron gagal)"); }
+    else { showToast((ok1&&ok2)?"Persentase alokasi disimpan":"Gagal tersimpan ke Sheets — coba lagi, atau login ulang kalau berulang"); }
   });
 
   renderPctForm(); renderPctHistory(); renderSaldoAwalForm(); renderTutupBukuForm();
