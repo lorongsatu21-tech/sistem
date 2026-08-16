@@ -439,6 +439,29 @@ async function sheetsApiFetch(path, options){
   }
   return res;
 }
+let sheetTitlesCache = null;
+async function ensureSheetExists(sheetName){
+  try{
+    if(!sheetTitlesCache){
+      const res = await sheetsApiFetch(`?fields=sheets.properties.title`, { method:"GET" });
+      if(res.ok){
+        const data = await res.json();
+        sheetTitlesCache = (data.sheets||[]).map(s=>s.properties.title);
+      } else { sheetTitlesCache = []; }
+    }
+    if(sheetTitlesCache.includes(sheetName)) return true;
+    const addRes = await sheetsApiFetch(`:batchUpdate`, {
+      method:"POST",
+      body: JSON.stringify({ requests:[{ addSheet:{ properties:{ title: sheetName } } }] })
+    });
+    if(addRes.ok){ sheetTitlesCache.push(sheetName); return true; }
+    if(addRes.status===400){
+      // kemungkinan sudah dibuat barusan oleh percobaan lain / race condition — anggap sudah ada
+      sheetTitlesCache = null; return true;
+    }
+    return false;
+  }catch(e){ console.error("Gagal memastikan tab sheet ada:", sheetName, e); return false; }
+}
 function rowsToGrid(headers, rowObjects){
   return rowObjects.map(r=>headers.map(h=>{
     let v=r[h]; if(v===undefined||v===null) v="";
@@ -458,6 +481,7 @@ async function sheetsGetAll(sheetName){
   for(let i=0;i<attempts;i++){
     try{
       const res = await sheetsApiFetch(`/values/${encodeURIComponent(sheetName)}`, { method:"GET" });
+      if(res.status===400){ return []; } // tab belum pernah dibuat -> anggap belum ada data, bukan error
       if(!res.ok){ throw new Error(`HTTP ${res.status}`); }
       const data = await res.json();
       return gridToRows(data.values||[]);
@@ -472,6 +496,8 @@ async function sheetsReplaceAll(sheetName, headers, rows){
   const grid=[headers, ...rowsToGrid(headers, rows)];
   for(let i=0;i<attempts;i++){
     try{
+      const exists = await ensureSheetExists(sheetName);
+      if(!exists) throw new Error(`Gagal memastikan/membuat tab "${sheetName}"`);
       const clearRes = await sheetsApiFetch(`/values/${encodeURIComponent(sheetName)}:clear`, { method:"POST", body:"{}" });
       if(!clearRes.ok) throw new Error(`Gagal clear (HTTP ${clearRes.status})`);
       const updateRes = await sheetsApiFetch(`/values/${encodeURIComponent(sheetName)}?valueInputOption=USER_ENTERED`, {
