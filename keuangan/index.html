@@ -576,7 +576,7 @@ function pengeluaranFromRows(rows, unitsList){
   return rows.map(r=>{
     const dt=normalizeDateCell(r["Tanggal"]); const unitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()];
     const kantong=byPocketLabel[String(r["Kantong"]||"").trim().toLowerCase()];
-    const kategori=byKategoriLabel[String(r["Kategori"]||"").trim().toLowerCase()] || "lainnya";
+    const kategori=byKategoriLabel[String(r["Kategori"]||"").trim().toLowerCase()] || "lain";
     if(!dt||!unitKey||!kantong) return null;
     return { id:uid(), date:dt, unitKey, kantong, kategori, jumlah:Number(r["Jumlah"])||0, keterangan:r["Keterangan"]||"", createdAt:new Date().toISOString() };
   }).filter(Boolean);
@@ -1003,16 +1003,19 @@ const KATEGORI_LAIN = [
 function lainLabel(key){ return (KATEGORI_LAIN.find(k=>k.key===key)||{}).label || key; }
 
 const KATEGORI_PENGELUARAN = [
-  { key:"bahan_baku", label:"Bahan Baku/Stok" },
-  { key:"operasional", label:"Operasional (listrik, air, internet)" },
-  { key:"gaji", label:"Gaji/Upah" },
+  { key:"stok", label:"Stok" },
+  { key:"bahan_baku", label:"Bahan Baku" },
+  { key:"gaji_bonus", label:"Gaji/Bonus" },
+  { key:"listrik_topup", label:"Listrik/TopUp" },
   { key:"transportasi", label:"Transportasi" },
-  { key:"perawatan", label:"Perawatan/Perbaikan" },
-  { key:"marketing", label:"Marketing/Promosi" },
-  { key:"sewa", label:"Sewa" },
-  { key:"lainnya", label:"Lainnya" }
+  { key:"perawatan", label:"Perawatan" },
+  { key:"promosi", label:"Promosi" },
+  { key:"aset", label:"Aset" },
+  { key:"alat", label:"Alat" },
+  { key:"prive", label:"Prive" },
+  { key:"lain", label:"Lain-lain" }
 ];
-function kategoriPengeluaranLabel(key){ return (KATEGORI_PENGELUARAN.find(k=>k.key===key)||{}).label || key || "Lainnya"; }
+function kategoriPengeluaranLabel(key){ return (KATEGORI_PENGELUARAN.find(k=>k.key===key)||{}).label || key || "Lain-lain"; }
 
 function renderPemasukan(c){
   c.innerHTML = `
