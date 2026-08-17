@@ -320,6 +320,7 @@ const NAV = [
   { group:"Transaksi", items:[ {id:"pemasukan", label:"Kas Masuk"}, {id:"pengeluaran", label:"Kas Keluar"} ] },
   { group:"Kantong Kas", items:[ {id:"kantong", label:"Saldo Kantong"}, {id:"alokasi", label:"Pengaturan Alokasi"} ] },
   { group:"Laporan", items:[ {id:"riwayat", label:"Riwayat Harian"}, {id:"rekap-bulanan", label:"Rekap Bulanan"}, {id:"rekap-tahunan", label:"Rekap Tahunan"}, {id:"analisis", label:"Analisis Keuangan"} ] },
+  { group:"Target Omzet", items:[ {id:"target-bonus", label:"Target & Bonus"} ] },
   { group:"Lainnya", items:[ {id:"pengaturan", label:"Pengaturan Unit"} ] }
 ];
 const PAGE_META = {
@@ -333,6 +334,7 @@ const PAGE_META = {
   "rekap-bulanan":["Rekap Bulanan","Rekap kas masuk & pengeluaran per bulan, per unit"],
   "rekap-tahunan":["Rekap Tahunan","Rekap kas masuk & pengeluaran per tahun, per unit"],
   "analisis":["Analisis Keuangan","Analisis kondisi keuangan per unit berdasarkan kantong kas"],
+  "target-bonus":["Target & Bonus","Target omzet bulanan dan bonus karyawan per unit"],
   "pengaturan":["Pengaturan Unit","Kelola nama unit usaha"]
 };
 
@@ -352,7 +354,7 @@ const sheetsConfigured = true;
 
 const SHEET_UNIT="Unit", SHEET_ALOKASI="Alokasi Kantong", SHEET_RIWAYAT_ALOKASI="Riwayat Alokasi",
       SHEET_KAS_MASUK="Kas Masuk", SHEET_PEMASUKAN_LAIN="Pemasukan Lain", SHEET_PENGELUARAN="Pengeluaran",
-      SHEET_SALDO_AWAL="Saldo Awal", SHEET_TUTUP_BUKU="Tutup Buku";
+      SHEET_SALDO_AWAL="Saldo Awal", SHEET_TUTUP_BUKU="Tutup Buku", SHEET_TARGET_OMZET="Target Omzet";
 const HDR_UNIT=["Kode Internal","Nama Unit"];
 const HDR_ALOKASI=["Unit","Kantong Stok %","Kantong Operasional %","Kantong Investasi %","Kantong Dana Aman %","Kantong Profit %"];
 const HDR_RIWAYAT_ALOKASI=["Tanggal Ubah","Unit","Stok %","Operasional %","Investasi %","Dana Aman %","Profit %"];
@@ -361,6 +363,7 @@ const HDR_PEMASUKAN_LAIN=["Tanggal","Unit","Kategori","Jumlah","Keterangan"];
 const HDR_PENGELUARAN_SHEET=["Tanggal","Unit","Kantong","Kategori","Jumlah","Keterangan"];
 const HDR_SALDO_AWAL=["Unit","Tanggal","Total","Alokasi Stok","Alokasi Operasional","Alokasi Investasi","Alokasi Dana Aman","Alokasi Profit"];
 const HDR_TUTUP_BUKU=["Tahun","Saldo Stok","Saldo Operasional","Saldo Investasi","Saldo Dana Aman","Saldo Profit"];
+const HDR_TARGET_OMZET=["Unit","Bulan","Target"];
 
 function asText(v){ return "'"+v; } // paksa Google Sheets simpan sebagai teks, bukan tanggal/angka otomatis
 
@@ -649,6 +652,38 @@ async function saveTutupBuku(){
   return sheetsConfigured ? sheetsReplaceAll(SHEET_TUTUP_BUKU, HDR_TUTUP_BUKU, rowsFromTutupBuku()) : true;
 }
 
+function rowsFromTargetOmzet(){
+  const rows=[];
+  Object.keys(TARGET_OMZET).forEach(unitKey=>{
+    Object.keys(TARGET_OMZET[unitKey]).forEach(ym=>{
+      const v=TARGET_OMZET[unitKey][ym];
+      if(v>0) rows.push({ "Unit":unitLabel(unitKey), "Bulan":asText(ym), "Target":v });
+    });
+  });
+  return rows;
+}
+function targetOmzetFromRows(rows, unitsList){
+  const byLabel=unitByLabelMap(unitsList); const result={};
+  rows.forEach(r=>{
+    const key=byLabel[String(r["Unit"]||"").trim().toLowerCase()]; if(!key) return;
+    const ym=String(r["Bulan"]||"").replace(/^'/,"").trim(); if(!ym) return;
+    if(!result[key]) result[key]={};
+    result[key][ym]=Number(r["Target"])||0;
+  });
+  return result;
+}
+async function saveTargetOmzet(){
+  return sheetsConfigured ? sheetsReplaceAll(SHEET_TARGET_OMZET, HDR_TARGET_OMZET, rowsFromTargetOmzet()) : true;
+}
+function computeBonus(realisasi, target){
+  if(!target || target<=0) return { pct:null, bonusPct:0, bonusAmount:0 };
+  const pct = realisasi/target*100;
+  let bonusPct = 0;
+  if(pct>=100) bonusPct=1;
+  else if(pct>=90) bonusPct=0.5;
+  const bonusAmount = Math.round(realisasi * bonusPct/100);
+  return { pct, bonusPct, bonusAmount };
+}
 /* ---- fungsi simpan per-entitas (Sheets kalau tersedia) ---- */
 async function saveUnitsAndPct(){
   if(!sheetsConfigured) return storageSet(K_UNITS,UNITS) && storageSet(K_PCT,PCT_CONFIG);
@@ -705,6 +740,7 @@ let PEMASUKAN = {};        // { date: { units: { unitKey: {kasPagi,trxPagi,kasSo
 let PENGELUARAN = [];      // [{id,date,unitKey,kantong,jumlah,keterangan,createdAt}]
 let SALDO_AWAL = {};       // { unitKey: {total, tanggal, alokasi:{stok,...}, savedAt} }
 let TUTUP_BUKU = [];       // [{tahun, saldo:{stok,...}, savedAt}] — saldo gabungan semua unit per kantong
+let TARGET_OMZET = {};     // { unitKey: { "YYYY-MM": target } }
 
 /* ================= UTILS ================= */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -954,7 +990,7 @@ function navigateTo(id){
   const renderers={
     "sampul":renderSampul,"dashboard":renderDashboard,"pemasukan":renderPemasukan,"pengeluaran":renderPengeluaran,
     "kantong":renderKantong,"alokasi":renderAlokasi,"riwayat":renderRiwayat,"rekap-bulanan":renderRekapBulanan,
-    "rekap-tahunan":renderRekapTahunan,"analisis":renderAnalisis,"pengaturan":renderPengaturan
+    "rekap-tahunan":renderRekapTahunan,"analisis":renderAnalisis,"target-bonus":renderTargetBonus,"pengaturan":renderPengaturan
   };
   try{
     (renderers[currentPage]||renderDashboard)(c);
@@ -2007,6 +2043,125 @@ function renderAnalisis(c){
 }
 
 /* ================= PENGATURAN (UNIT) ================= */
+/* ================= TARGET & BONUS ================= */
+function renderTargetBonus(c){
+  const unitOptions = UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  const years = yearsPresent(); const curYr=String(new Date().getFullYear());
+  if(!years.includes(curYr)) years.unshift(curYr);
+  const yearOptions = [...new Set(years)].sort((a,b)=>b.localeCompare(a)).map(y=>`<option value="${y}">${y}</option>`).join("");
+  c.innerHTML = `
+    <div class="controlbar">
+      <div class="field-inline"><label class="f-label">Unit</label><select id="tgUnit">${unitOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Tahun</label><select id="tgTahun">${yearOptions}</select></div>
+    </div>
+    <div class="card card-pad" style="margin-bottom:18px;">
+      <div style="font-size:12.5px;color:var(--muted);">
+        Aturan bonus: pencapaian <b>≥100%</b> dari target → bonus <b>1% dari omzet</b>. Pencapaian <b>≥90%</b> → bonus <b>0,5% dari omzet</b>. Di bawah 90% → tidak ada bonus.<br>
+        Target default terisi otomatis <b>15% lebih tinggi</b> dari omzet bulan yang sama tahun lalu — tapi selalu bisa diedit manual.
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" id="tgIsiOtomatis">Isi Target Kosong Otomatis (15% dari tahun lalu)</button>
+      <button class="btn btn-primary btn-sm" id="tgSimpan">Simpan Semua Target</button>
+      <span id="tgStatus" style="font-size:12px;color:var(--muted);align-self:center;"></span>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Bulan</th><th>Target Omzet</th><th>Realisasi Omzet</th><th>Pencapaian</th><th>Bonus Karyawan</th><th>Keterangan</th></tr></thead>
+      <tbody id="tgBody"></tbody>
+      <tfoot><tr id="tgFoot"></tr></tfoot>
+    </table></div>
+  `;
+
+  function realisasiForMonth(unitKey, year, m){
+    const {from,to}=monthRange(year,m);
+    return unitIncomeInRange(unitKey,from,to).kas;
+  }
+  function readTargetInputs(){
+    const r={}; document.querySelectorAll("[data-target-month]").forEach(inp=>{ r[inp.getAttribute("data-target-month")]=parseMoneyInput(inp.value); }); return r;
+  }
+  function render(){
+    const unitKey=document.getElementById("tgUnit").value;
+    const year=parseInt(document.getElementById("tgTahun").value,10);
+    const stored=(TARGET_OMZET[unitKey])||{};
+    let rows="", fTarget=0,fReal=0,fBonus=0;
+    for(let m=1;m<=12;m++){
+      const ym=`${year}-${String(m).padStart(2,"0")}`;
+      const target=stored[ym]||0;
+      const realisasi=realisasiForMonth(unitKey,year,m);
+      const {pct,bonusAmount}=computeBonus(realisasi,target);
+      fTarget+=target; fReal+=realisasi; fBonus+=bonusAmount;
+      const ket = target<=0 ? "Belum ada target" : `Tercapai ${pct.toFixed(1)}%`;
+      const ketColor = target<=0 ? "var(--muted)" : (pct>=100 ? "var(--moss-dark)" : pct>=90 ? "var(--gold)" : "var(--danger)");
+      rows += `<tr>
+        <td class="rowdate">${MONTH_NAMES[m-1]}</td>
+        <td><div class="input-money" style="max-width:150px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-target-month="${ym}" value="${target?target.toLocaleString('id-ID'):''}" placeholder="0"></div></td>
+        <td>${formatRupiah(realisasi)}</td>
+        <td>${target>0 ? pct.toFixed(1)+"%" : "-"}</td>
+        <td class="${bonusAmount>0?'pos':''}">${formatRupiah(bonusAmount)}</td>
+        <td style="text-align:left;color:${ketColor};font-weight:600;">${ket}</td>
+      </tr>`;
+    }
+    document.getElementById("tgBody").innerHTML=rows;
+    document.getElementById("tgFoot").innerHTML = `<td>Total Tahun</td><td>${formatRupiah(fTarget)}</td><td>${formatRupiah(fReal)}</td><td>${fTarget>0?(fReal/fTarget*100).toFixed(1)+"%":"-"}</td><td>${formatRupiah(fBonus)}</td><td></td>`;
+    document.querySelectorAll("[data-target-month]").forEach(inp=>{
+      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalcRowsOnly(); });
+    });
+  }
+  function recalcRowsOnly(){
+    // hitung ulang kolom Pencapaian/Bonus/Keterangan langsung dari nilai input saat ini, tanpa render ulang seluruh tabel (biar fokus input tidak hilang)
+    const unitKey=document.getElementById("tgUnit").value;
+    const year=parseInt(document.getElementById("tgTahun").value,10);
+    let fTarget=0,fReal=0,fBonus=0;
+    document.querySelectorAll("#tgBody tr").forEach((tr,idx)=>{
+      const m=idx+1;
+      const input=tr.querySelector("[data-target-month]");
+      const target=parseMoneyInput(input.value);
+      const realisasi=realisasiForMonth(unitKey,year,m);
+      const {pct,bonusAmount}=computeBonus(realisasi,target);
+      fTarget+=target; fReal+=realisasi; fBonus+=bonusAmount;
+      const cells=tr.querySelectorAll("td");
+      cells[3].textContent = target>0 ? pct.toFixed(1)+"%" : "-";
+      cells[4].textContent = formatRupiah(bonusAmount);
+      cells[4].className = bonusAmount>0 ? "pos" : "";
+      const ket = target<=0 ? "Belum ada target" : `Tercapai ${pct.toFixed(1)}%`;
+      const ketColor = target<=0 ? "var(--muted)" : (pct>=100 ? "var(--moss-dark)" : pct>=90 ? "var(--gold)" : "var(--danger)");
+      cells[5].textContent = ket; cells[5].style.color = ketColor;
+    });
+    document.getElementById("tgFoot").innerHTML = `<td>Total Tahun</td><td>${formatRupiah(fTarget)}</td><td>${formatRupiah(fReal)}</td><td>${fTarget>0?(fReal/fTarget*100).toFixed(1)+"%":"-"}</td><td>${formatRupiah(fBonus)}</td><td></td>`;
+  }
+
+  document.getElementById("tgUnit").addEventListener("change", render);
+  document.getElementById("tgTahun").addEventListener("change", render);
+  document.getElementById("tgIsiOtomatis").addEventListener("click", ()=>{
+    const unitKey=document.getElementById("tgUnit").value;
+    const year=parseInt(document.getElementById("tgTahun").value,10);
+    let filled=0;
+    document.querySelectorAll("[data-target-month]").forEach((inp,idx)=>{
+      const m=idx+1;
+      if(parseMoneyInput(inp.value)>0) return; // jangan timpa yang sudah diisi
+      const realisasiTahunLalu = realisasiForMonth(unitKey, year-1, m);
+      if(realisasiTahunLalu>0){
+        const def=Math.round(realisasiTahunLalu*1.15);
+        inp.value=def.toLocaleString("id-ID");
+        filled++;
+      }
+    });
+    recalcRowsOnly();
+    showToast(filled ? `${filled} bulan terisi otomatis (15% dari tahun lalu)` : "Tidak ada data tahun lalu untuk dijadikan acuan — isi manual dulu");
+  });
+  document.getElementById("tgSimpan").addEventListener("click", async ()=>{
+    const unitKey=document.getElementById("tgUnit").value;
+    const vals=readTargetInputs();
+    if(!TARGET_OMZET[unitKey]) TARGET_OMZET[unitKey]={};
+    Object.keys(vals).forEach(ym=>{ TARGET_OMZET[unitKey][ym]=vals[ym]; });
+    const ok=await saveTargetOmzet();
+    document.getElementById("tgStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Gagal tersimpan ke Sheets — coba lagi";
+    showToast(ok ? "Target tersimpan" : "Gagal menyimpan");
+  });
+
+  render();
+}
+
 function renderPengaturan(c){
   c.innerHTML = `
     <div class="section-title">Muat Ulang Data</div>
@@ -2276,6 +2431,7 @@ function renderPengaturan(c){
       [SHEET_RIWAYAT_ALOKASI, rowsFromPctHistory()],
       [SHEET_SALDO_AWAL, rowsFromSaldoAwal()],
       [SHEET_TUTUP_BUKU, rowsFromTutupBuku()],
+      [SHEET_TARGET_OMZET, rowsFromTargetOmzet()],
       [SHEET_KAS_MASUK, rowsFromPemasukan()],
       [SHEET_PEMASUKAN_LAIN, rowsFromPemasukanLain()],
       [SHEET_PENGELUARAN, rowsFromPengeluaran()]
@@ -2376,10 +2532,10 @@ function renderPengaturan(c){
 
 /* ================= INIT ================= */
 async function loadFromSheets(){
-  const [unitRows, pctRows, histRows, kasRows, lainRows, pengRows, saldoAwalRows, tutupBukuRows] = await Promise.all([
+  const [unitRows, pctRows, histRows, kasRows, lainRows, pengRows, saldoAwalRows, tutupBukuRows, targetRows] = await Promise.all([
     sheetsGetAll(SHEET_UNIT), sheetsGetAll(SHEET_ALOKASI), sheetsGetAll(SHEET_RIWAYAT_ALOKASI),
     sheetsGetAll(SHEET_KAS_MASUK), sheetsGetAll(SHEET_PEMASUKAN_LAIN), sheetsGetAll(SHEET_PENGELUARAN),
-    sheetsGetAll(SHEET_SALDO_AWAL), sheetsGetAll(SHEET_TUTUP_BUKU)
+    sheetsGetAll(SHEET_SALDO_AWAL), sheetsGetAll(SHEET_TUTUP_BUKU), sheetsGetAll(SHEET_TARGET_OMZET)
   ]);
   if(unitRows===null) return false; // gagal total, biar fallback ke penyimpanan lama
 
@@ -2391,6 +2547,7 @@ async function loadFromSheets(){
   PENGELUARAN = pengeluaranFromRows(pengRows||[], UNITS);
   SALDO_AWAL = saldoAwalFromRows(saldoAwalRows||[], UNITS);
   TUTUP_BUKU = tutupBukuFromRows(tutupBukuRows||[]);
+  TARGET_OMZET = targetOmzetFromRows(targetRows||[], UNITS);
 
   if(!unitRows.length){
     // Sheet baru/kosong: kirim unit & persentase default sekali di awal supaya tab-nya terisi
