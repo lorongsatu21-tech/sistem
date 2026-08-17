@@ -204,7 +204,11 @@ const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
 const SHEET_UNIT="Unit", SHEET_KAS_MASUK="Kas Masuk", SHEET_TARGET_OMZET="Target Omzet";
 const SHEET_KARYAWAN="Karyawan", SHEET_GAJI="Gaji", SHEET_BONUS="Bonus";
-const HDR_KARYAWAN=["Nama","Unit","Jabatan","Gaji Pokok","Status","No HP"];
+const HDR_KARYAWAN=["Nama","Unit","Jabatan","Gaji Pokok","Status","No HP",
+  "NIK","Tempat Lahir","Tanggal Lahir","Jenis Kelamin","Alamat","Akun Medsos",
+  "Tanggal Mulai Kerja","Jenis Karyawan","Level Kompetensi",
+  "Nama Orang Tua","Nama Saudara","Kontak Darurat Nama","Kontak Darurat HP","Kontak Darurat Hubungan",
+  "Pendidikan Terakhir","Pengalaman Kerja","Catatan"];
 const HDR_GAJI=["Tanggal Bayar","Karyawan","Bulan","Jumlah","Keterangan"];
 const HDR_BONUS=["Tanggal Bayar","Karyawan","Unit","Bulan","Jumlah"];
 const MONTH_NAMES=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -353,6 +357,18 @@ function parseMoneyInput(str){ if(!str) return 0; const c=String(str).replace(/[
 function escapeHtml(str){ return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function unitLabel(key){ const u=UNITS.find(x=>x.key===key); return u?u.label:(key||"-"); }
 function karyawanLabel(id){ const k=KARYAWAN.find(x=>x.id===id); return k?k.nama:id; }
+function masaKerjaText(tanggalMulai){
+  if(!tanggalMulai) return "-";
+  const mulai=new Date(tanggalMulai+"T00:00:00"); const now=new Date();
+  if(isNaN(mulai.getTime()) || mulai>now) return "-";
+  let bulan=(now.getFullYear()-mulai.getFullYear())*12 + (now.getMonth()-mulai.getMonth());
+  if(now.getDate()<mulai.getDate()) bulan--;
+  if(bulan<0) bulan=0;
+  const th=Math.floor(bulan/12), bl=bulan%12;
+  if(th<=0 && bl<=0) return "Baru mulai";
+  const parts=[]; if(th>0) parts.push(`${th} tahun`); if(bl>0) parts.push(`${bl} bulan`);
+  return parts.join(" ");
+}
 function showToast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1900); }
 function monthRange(year,month){ const from=`${year}-${String(month).padStart(2,"0")}-01`; const lastDay=new Date(year,month,0).getDate(); const to=`${year}-${String(month).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`; return {from,to}; }
 
@@ -397,15 +413,31 @@ function computeBonusPool(unitKey, year, m){
 /* ================= KONVERSI DATA <-> SHEET ================= */
 function unitsFromRows(rows){ return rows.map(r=>({ key:String(r["Kode Internal"]||"").trim(), label:String(r["Nama Unit"]||"").trim() })).filter(u=>u.key&&u.label); }
 
+const KARYAWAN_DETAIL_FIELDS=["nik","tempatLahir","tanggalLahir","jenisKelamin","alamat","medsos",
+  "tanggalMulaiKerja","jenisKaryawan","levelKompetensi","namaOrangTua","namaSaudara",
+  "kontakDaruratNama","kontakDaruratHp","kontakDaruratHubungan","pendidikanTerakhir","pengalamanKerja","catatan"];
+
 function rowsFromKaryawan(){
-  return KARYAWAN.map(k=>({ "Nama":k.nama, "Unit":unitLabel(k.unitKey), "Jabatan":k.jabatan||"", "Gaji Pokok":k.gajiPokok||0, "Status":k.status||"aktif", "No HP":k.noHp||"" }));
+  return KARYAWAN.map(k=>({
+    "Nama":k.nama, "Unit":unitLabel(k.unitKey), "Jabatan":k.jabatan||"", "Gaji Pokok":k.gajiPokok||0, "Status":k.status||"aktif", "No HP":k.noHp||"",
+    "NIK":k.nik||"", "Tempat Lahir":k.tempatLahir||"", "Tanggal Lahir":k.tanggalLahir?asText(k.tanggalLahir):"", "Jenis Kelamin":k.jenisKelamin||"", "Alamat":k.alamat||"", "Akun Medsos":k.medsos||"",
+    "Tanggal Mulai Kerja":k.tanggalMulaiKerja?asText(k.tanggalMulaiKerja):"", "Jenis Karyawan":k.jenisKaryawan||"", "Level Kompetensi":k.levelKompetensi||"",
+    "Nama Orang Tua":k.namaOrangTua||"", "Nama Saudara":k.namaSaudara||"", "Kontak Darurat Nama":k.kontakDaruratNama||"", "Kontak Darurat HP":k.kontakDaruratHp||"", "Kontak Darurat Hubungan":k.kontakDaruratHubungan||"",
+    "Pendidikan Terakhir":k.pendidikanTerakhir||"", "Pengalaman Kerja":k.pengalamanKerja||"", "Catatan":k.catatan||""
+  }));
 }
 function karyawanFromRows(rows, unitsList){
   const byLabel=unitByLabelMap(unitsList);
   return rows.map(r=>{
     const nama=String(r["Nama"]||"").trim(); if(!nama) return null;
     const unitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()]||"";
-    return { id:uid(), nama, unitKey, jabatan:r["Jabatan"]||"", gajiPokok:Number(r["Gaji Pokok"])||0, status:(String(r["Status"]||"aktif").toLowerCase()==="nonaktif"?"nonaktif":"aktif"), noHp:r["No HP"]||"" };
+    return {
+      id:uid(), nama, unitKey, jabatan:r["Jabatan"]||"", gajiPokok:Number(r["Gaji Pokok"])||0, status:(String(r["Status"]||"aktif").toLowerCase()==="nonaktif"?"nonaktif":"aktif"), noHp:r["No HP"]||"",
+      nik:r["NIK"]||"", tempatLahir:r["Tempat Lahir"]||"", tanggalLahir:normalizeDateCell(r["Tanggal Lahir"])||"", jenisKelamin:r["Jenis Kelamin"]||"", alamat:r["Alamat"]||"", medsos:r["Akun Medsos"]||"",
+      tanggalMulaiKerja:normalizeDateCell(r["Tanggal Mulai Kerja"])||"", jenisKaryawan:r["Jenis Karyawan"]||"", levelKompetensi:r["Level Kompetensi"]||"",
+      namaOrangTua:r["Nama Orang Tua"]||"", namaSaudara:r["Nama Saudara"]||"", kontakDaruratNama:r["Kontak Darurat Nama"]||"", kontakDaruratHp:r["Kontak Darurat HP"]||"", kontakDaruratHubungan:r["Kontak Darurat Hubungan"]||"",
+      pendidikanTerakhir:r["Pendidikan Terakhir"]||"", pengalamanKerja:r["Pengalaman Kerja"]||"", catatan:r["Catatan"]||""
+    };
   }).filter(Boolean);
 }
 
@@ -562,6 +594,88 @@ function renderDashboard(c){
 }
 
 /* ================= DAFTAR KARYAWAN ================= */
+/* ================= MODAL DETAIL KARYAWAN (data lengkap) ================= */
+function openDetailModal(karyawanId, onSaved){
+  const k=KARYAWAN.find(x=>x.id===karyawanId); if(!k) return;
+  const overlay=document.createElement("div"); overlay.className="modal-overlay";
+  const box=document.createElement("div"); box.className="modal-box"; box.style.maxWidth="600px"; box.style.maxHeight="85vh"; box.style.overflowY="auto";
+
+  function field(label, key, type){
+    const val=escapeHtml(k[key]||"");
+    if(type==="date") return `<div class="field-inline"><label class="f-label">${label}</label><input type="date" data-detail-field="${key}" value="${val}"></div>`;
+    if(type==="textarea") return `<div class="field-inline" style="grid-column:1/-1;"><label class="f-label">${label}</label><textarea data-detail-field="${key}" rows="2" style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;width:100%;font-family:inherit;">${val}</textarea></div>`;
+    return `<div class="field-inline"><label class="f-label">${label}</label><input type="text" data-detail-field="${key}" value="${val}"></div>`;
+  }
+  function selectField(label, key, options){
+    return `<div class="field-inline"><label class="f-label">${label}</label><select data-detail-field="${key}">
+      <option value="">- Pilih -</option>${options.map(o=>`<option value="${o}" ${k[key]===o?"selected":""}>${o}</option>`).join("")}
+    </select></div>`;
+  }
+
+  box.innerHTML=`
+    <div class="modal-msg" style="font-weight:700;font-size:15px;margin-bottom:14px;">Detail Lengkap — ${escapeHtml(k.nama)}</div>
+
+    <div class="section-title" style="font-size:13px;">Data Pribadi</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+      ${field("NIK","nik")}
+      ${selectField("Jenis Kelamin","jenisKelamin",["Laki-laki","Perempuan"])}
+      ${field("Tempat Lahir","tempatLahir")}
+      ${field("Tanggal Lahir","tanggalLahir","date")}
+      ${field("Akun Medsos","medsos")}
+      ${field("Alamat Lengkap","alamat","textarea")}
+    </div>
+
+    <div class="section-title" style="font-size:13px;">Data Kepegawaian</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+      ${field("Tanggal Mulai Kerja","tanggalMulaiKerja","date")}
+      <div class="field-inline"><label class="f-label">Masa Kerja</label><div style="padding:8px 0;font-size:13.5px;font-weight:600;color:var(--moss-dark);" id="dtMasaKerja">${masaKerjaText(k.tanggalMulaiKerja)}</div></div>
+      ${selectField("Jenis Karyawan","jenisKaryawan",["Tetap","Kontrak","Harian","Paruh Waktu"])}
+      ${selectField("Level Kompetensi","levelKompetensi",["Junior","Menengah","Senior"])}
+    </div>
+
+    <div class="section-title" style="font-size:13px;">Riwayat Pendidikan & Kerja</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+      ${selectField("Pendidikan Terakhir","pendidikanTerakhir",["SD","SMP","SMA/SMK","D3","S1","S2"])}
+      ${field("Pengalaman Kerja Sebelumnya","pengalamanKerja","textarea")}
+    </div>
+
+    <div class="section-title" style="font-size:13px;">Keluarga & Kontak Darurat</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+      ${field("Nama Orang Tua/Wali","namaOrangTua")}
+      ${field("Nama Saudara","namaSaudara")}
+      ${field("Nama Kontak Darurat","kontakDaruratNama")}
+      ${field("No HP Kontak Darurat","kontakDaruratHp")}
+      ${field("Hubungan","kontakDaruratHubungan")}
+    </div>
+
+    <div class="section-title" style="font-size:13px;">Catatan Tambahan</div>
+    <div style="margin-bottom:16px;">${field("Catatan","catatan","textarea")}</div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="cancel">Tutup</button>
+      <button class="btn btn-primary" data-act="save">Simpan Detail</button>
+    </div>
+  `;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  const tglMulaiInput=box.querySelector('[data-detail-field="tanggalMulaiKerja"]');
+  if(tglMulaiInput) tglMulaiInput.addEventListener("change", ()=>{ box.querySelector("#dtMasaKerja").textContent=masaKerjaText(tglMulaiInput.value); });
+
+  box.querySelector('[data-act="cancel"]').addEventListener("click", ()=>document.body.removeChild(overlay));
+  overlay.addEventListener("click",(e)=>{ if(e.target===overlay) document.body.removeChild(overlay); });
+  box.querySelector('[data-act="save"]').addEventListener("click", async ()=>{
+    KARYAWAN_DETAIL_FIELDS.forEach(key=>{
+      const el=box.querySelector(`[data-detail-field="${key}"]`);
+      if(el) k[key]=el.value.trim();
+    });
+    const ok=await saveKaryawan();
+    document.body.removeChild(overlay);
+    showToast(ok ? "Detail tersimpan" : "Gagal tersimpan — coba lagi");
+    if(onSaved) onSaved();
+  });
+}
+
 function renderDaftar(c){
   const unitOptions=UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
   c.innerHTML=`
@@ -594,7 +708,7 @@ function renderDaftar(c){
         <td><div class="input-money" style="max-width:140px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-edit="gajiPokok" data-id="${k.id}" value="${k.gajiPokok?k.gajiPokok.toLocaleString('id-ID'):''}"></div></td>
         <td><span class="pill ${k.status}">${k.status==="aktif"?"Aktif":"Nonaktif"}</span></td>
         <td><input type="tel" data-edit="noHp" data-id="${k.id}" value="${escapeHtml(k.noHp||"")}" placeholder="08xx" style="width:110px;"></td>
-        <td><button class="btn btn-ghost btn-sm" data-toggle="${k.id}">${k.status==="aktif"?"Nonaktifkan":"Aktifkan"}</button> <button class="btn btn-danger btn-sm" data-del="${k.id}">Hapus</button></td>
+        <td><button class="btn btn-ghost btn-sm" data-detail="${k.id}">Detail</button> <button class="btn btn-ghost btn-sm" data-toggle="${k.id}">${k.status==="aktif"?"Nonaktifkan":"Aktifkan"}</button> <button class="btn btn-danger btn-sm" data-del="${k.id}">Hapus</button></td>
       </tr>`).join("") : `<tr><td colspan="7" class="empty-state">Belum ada karyawan.</td></tr>`;
 
     document.querySelectorAll('[data-edit="gajiPokok"]').forEach(inp=>{
@@ -608,6 +722,9 @@ function renderDaftar(c){
         const ok=await saveKaryawan();
         showToast(ok?"Tersimpan":"Gagal tersimpan — coba lagi");
       });
+    });
+    document.querySelectorAll("[data-detail]").forEach(btn=>{
+      btn.addEventListener("click", ()=>openDetailModal(btn.getAttribute("data-detail"), renderList));
     });
     document.querySelectorAll("[data-toggle]").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
