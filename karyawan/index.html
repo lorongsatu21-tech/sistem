@@ -989,7 +989,7 @@ function renderTarifJabatan(c){
   document.getElementById("tfContoh").addEventListener("click", async ()=>{
     if(localList.length && !(await customConfirm("Timpa daftar yang ada dengan contoh bawaan (6 jabatan)?","Ya, Timpa"))) return;
     localList = CONTOH_TARIF_JABATAN.map(t=>({...t}));
-    if(!currentBasis()){ document.getElementById("tfBasis").value=(100000).toLocaleString("id-ID"); }
+    if(!currentBasis()){ document.getElementById("tfBasis").value=(100).toLocaleString("id-ID"); }
     renderList();
   });
   document.getElementById("tfSimpan").addEventListener("click", async ()=>{
@@ -1081,10 +1081,11 @@ function renderGaji(c){
       <div class="field-inline"><label class="f-label">Bulan</label><select id="gjBulan">${monthOptions}</select></div>
     </div>
     <div class="tbl-wrap" style="margin-bottom:22px;"><table>
-      <thead><tr><th>Nama</th><th>Jabatan</th><th>Gaji Pokok</th><th>Jumlah Dibayar</th><th>Tunjangan Jabatan</th><th>Keterangan</th><th></th></tr></thead>
+      <thead><tr><th>Nama</th><th>Jabatan</th><th>Gaji Pokok</th><th>Jumlah Dibayar</th><th>Tunjangan Jabatan</th><th>Bonus</th><th>Total</th><th>Keterangan</th><th></th></tr></thead>
       <tbody id="gjBody"></tbody>
       <tfoot><tr id="gjFoot"></tr></tfoot>
     </table></div>
+    <div style="font-size:11px;color:var(--muted);margin:-16px 0 14px;">Gaji Pokok mengikuti Daftar Karyawan · Tunjangan Jabatan mengikuti Tarif Jabatan (otomatis menyesuaikan kalau jabatan berubah) · Bonus otomatis dari halaman <a href="javascript:void(0)" id="gjLinkBonus" style="color:var(--moss-dark);font-weight:600;">Bonus →</a> (kolom ini tidak bisa diedit di sini)</div>
     <button class="btn btn-primary" id="gjSimpan">Simpan Pembayaran Gaji Bulan Ini</button>
     <span id="gjStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
 
@@ -1096,39 +1097,58 @@ function renderGaji(c){
   `;
   document.getElementById("gjBulan").value=String(now.getMonth()+1);
   document.getElementById("gjTahun").value=String(now.getFullYear());
+  document.getElementById("gjLinkBonus").addEventListener("click", ()=>navigateTo("bonus"));
 
   function ym(){ return `${document.getElementById("gjTahun").value}-${String(document.getElementById("gjBulan").value).padStart(2,"0")}`; }
+  function bonusForKaryawanMonth(karyawanId, currentYm){
+    return BONUS.filter(b=>b.karyawanId===karyawanId && b.bulan===currentYm).reduce((s,b)=>s+b.jumlah,0);
+  }
   function renderForm(){
     const currentYm=ym();
     const aktif=KARYAWAN.filter(k=>k.status==="aktif").sort((a,b)=>a.nama.localeCompare(b.nama));
-    let total=0;
+    let totalGaji=0, totalTunjangan=0, totalBonus=0, totalSemua=0;
     document.getElementById("gjBody").innerHTML = aktif.length ? aktif.map(k=>{
       const existing=GAJI.find(g=>g.karyawanId===k.id && g.bulan===currentYm);
       const jumlah = existing ? existing.jumlah : k.gajiPokok;
       const tunjangan = existing ? (existing.tunjanganJabatan||0) : tarifUntukJabatan(k.jabatan);
-      total+=jumlah;
+      const bonus = bonusForKaryawanMonth(k.id, currentYm);
+      const rowTotal = jumlah + tunjangan + bonus;
+      totalGaji+=jumlah; totalTunjangan+=tunjangan; totalBonus+=bonus; totalSemua+=rowTotal;
       return `<tr data-karyawan="${k.id}">
         <td style="text-align:left;">${escapeHtml(k.nama)}</td>
         <td style="text-align:left;">${escapeHtml(k.jabatan||"-")}</td>
         <td>${formatRupiah(k.gajiPokok)}</td>
         <td><div class="input-money" style="max-width:150px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-gaji-input="${k.id}" value="${jumlah?jumlah.toLocaleString('id-ID'):''}"></div></td>
         <td><div class="input-money" style="max-width:140px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-tunjangan-input="${k.id}" value="${tunjangan?tunjangan.toLocaleString('id-ID'):''}" placeholder="0"></div></td>
+        <td data-bonus-display="${k.id}" style="color:var(--muted);">${bonus?formatRupiah(bonus):"-"}</td>
+        <td data-total-display="${k.id}" style="font-weight:700;">${formatRupiah(rowTotal)}</td>
         <td><input type="text" data-ket-input="${k.id}" value="${escapeHtml((existing&&existing.keterangan)||'')}" placeholder="opsional" style="width:100%;"></td>
         <td></td>
       </tr>`;
-    }).join("") : `<tr><td colspan="7" class="empty-state">Belum ada karyawan aktif.</td></tr>`;
-    document.getElementById("gjFoot").innerHTML=`<td colspan="3">Total</td><td>${formatRupiah(total)}</td><td colspan="3"></td>`;
+    }).join("") : `<tr><td colspan="9" class="empty-state">Belum ada karyawan aktif.</td></tr>`;
+    document.getElementById("gjFoot").innerHTML=`<td colspan="3">Total</td><td id="gjFootGaji">${formatRupiah(totalGaji)}</td><td>${formatRupiah(totalTunjangan)}</td><td>${formatRupiah(totalBonus)}</td><td id="gjFootTotal">${formatRupiah(totalSemua)}</td><td colspan="2"></td>`;
     document.querySelectorAll("[data-gaji-input]").forEach(inp=>{
-      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalcTotal(); });
+      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalcRow(e.target.getAttribute("data-gaji-input")); recalcTotal(); });
     });
     document.querySelectorAll("[data-tunjangan-input]").forEach(inp=>{
-      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
+      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalcRow(e.target.getAttribute("data-tunjangan-input")); recalcTotal(); });
     });
   }
+  function recalcRow(karyawanId){
+    const gajiInp=document.querySelector(`[data-gaji-input="${karyawanId}"]`);
+    const tunjInp=document.querySelector(`[data-tunjangan-input="${karyawanId}"]`);
+    const bonus=bonusForKaryawanMonth(karyawanId, ym());
+    const rowTotal=parseMoneyInput(gajiInp.value)+parseMoneyInput(tunjInp.value)+bonus;
+    document.querySelector(`[data-total-display="${karyawanId}"]`).textContent=formatRupiah(rowTotal);
+  }
   function recalcTotal(){
-    let total=0;
-    document.querySelectorAll("[data-gaji-input]").forEach(inp=>{ total+=parseMoneyInput(inp.value); });
-    document.querySelector("#gjFoot td:nth-child(2)").textContent=formatRupiah(total);
+    let totalGaji=0, totalTunjangan=0, totalSemua=0, totalBonus=0;
+    document.querySelectorAll("[data-gaji-input]").forEach(inp=>{ totalGaji+=parseMoneyInput(inp.value); });
+    document.querySelectorAll("[data-tunjangan-input]").forEach(inp=>{ totalTunjangan+=parseMoneyInput(inp.value); });
+    document.querySelectorAll("[data-bonus-display]").forEach(td=>{ totalBonus+=bonusForKaryawanMonth(td.getAttribute("data-bonus-display"), ym()); });
+    totalSemua=totalGaji+totalTunjangan+totalBonus;
+    document.getElementById("gjFootGaji").textContent=formatRupiah(totalGaji);
+    document.getElementById("gjFootTotal").textContent=formatRupiah(totalSemua);
   }
   function renderHist(){
     const rows=[...GAJI].sort((a,b)=>b.tanggalBayar.localeCompare(a.tanggalBayar));
