@@ -2085,12 +2085,12 @@ function renderTargetBonus(c){
   }
   function pertumbuhanKeterangan(unitKey, year, m, realisasiTahunIni){
     const realisasiTahunLalu = realisasiForMonth(unitKey, year-1, m);
-    if(realisasiTahunLalu<=0) return "belum ada data tahun lalu";
+    if(realisasiTahunLalu<=0) return { text:"belum ada data tahun lalu untuk dibandingkan", arah:null };
     const selisih = realisasiTahunIni - realisasiTahunLalu;
     const growthPct = selisih/realisasiTahunLalu*100;
-    const pctDari15 = growthPct/15*100;
     const arah = selisih>=0 ? "naik" : "turun";
-    return `omzet ${arah} ${formatRupiah(Math.abs(selisih))} (${pctDari15>=0?"":"-"}${Math.abs(pctDari15).toFixed(0)}%)`;
+    const pctStr = Math.abs(growthPct).toFixed(1).replace(".", ",");
+    return { text:`omzet ${arah} ${formatRupiah(Math.abs(selisih))} (${arah} ${pctStr}%)`, arah };
   }
   function render(){
     const unitKey=document.getElementById("tgUnit").value;
@@ -2104,8 +2104,8 @@ function renderTargetBonus(c){
       const {pct,bonusAmount}=computeBonus(realisasi,target);
       fTarget+=target; fReal+=realisasi; fBonus+=bonusAmount;
       const pertumbuhan = pertumbuhanKeterangan(unitKey,year,m,realisasi);
-      const ket = target<=0 ? `Belum ada target — ${pertumbuhan}` : `Tercapai ${pct.toFixed(1)}% — ${pertumbuhan}`;
-      const ketColor = target<=0 ? "var(--muted)" : (pct>=100 ? "var(--moss-dark)" : pct>=90 ? "var(--gold)" : "var(--danger)");
+      const ket = pertumbuhan.text;
+      const ketColor = pertumbuhan.arah===null ? "var(--muted)" : (pertumbuhan.arah==="naik" ? "var(--moss-dark)" : "var(--danger)");
       rows += `<tr>
         <td class="rowdate">${MONTH_NAMES[m-1]}</td>
         <td><div class="input-money" style="max-width:150px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-target-month="${ym}" value="${target?target.toLocaleString('id-ID'):''}" placeholder="0"></div></td>
@@ -2137,9 +2137,9 @@ function renderTargetBonus(c){
       cells[3].textContent = target>0 ? pct.toFixed(1)+"%" : "-";
       cells[4].textContent = formatRupiah(bonusAmount);
       cells[4].className = bonusAmount>0 ? "pos" : "";
-      const ket = target<=0 ? `Belum ada target — ${pertumbuhanKeterangan(unitKey,year,m,realisasi)}` : `Tercapai ${pct.toFixed(1)}% — ${pertumbuhanKeterangan(unitKey,year,m,realisasi)}`;
-      const ketColor = target<=0 ? "var(--muted)" : (pct>=100 ? "var(--moss-dark)" : pct>=90 ? "var(--gold)" : "var(--danger)");
-      cells[5].textContent = ket; cells[5].style.color = ketColor;
+      const pertumbuhan = pertumbuhanKeterangan(unitKey,year,m,realisasi);
+      cells[5].textContent = pertumbuhan.text;
+      cells[5].style.color = pertumbuhan.arah===null ? "var(--muted)" : (pertumbuhan.arah==="naik" ? "var(--moss-dark)" : "var(--danger)");
     });
     document.getElementById("tgFoot").innerHTML = `<td>Total Tahun</td><td>${formatRupiah(fTarget)}</td><td>${formatRupiah(fReal)}</td><td>${fTarget>0?(fReal/fTarget*100).toFixed(1)+"%":"-"}</td><td>${formatRupiah(fBonus)}</td><td></td>`;
   }
