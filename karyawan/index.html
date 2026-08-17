@@ -659,6 +659,14 @@ function openDetailModal(karyawanId, onSaved){
       <option value="">- Pilih Unit -</option>${UNITS.map(u=>`<option value="${u.key}" ${k.unitKey===u.key?"selected":""}>${escapeHtml(u.label)}</option>`).join("")}
     </select></div>`;
   }
+  function jabatanSelectField(){
+    const opts = TARIF_JABATAN.map(t=>t.nama);
+    if(k.jabatan && !opts.includes(k.jabatan)) opts.push(k.jabatan); // jaga data lama yang belum ada di daftar tarif
+    return `<div class="field-inline"><label class="f-label">Jabatan</label><select data-detail-field="jabatan">
+      <option value="">Tanpa Jabatan (Anggota Tim)</option>
+      ${opts.map(o=>`<option value="${escapeHtml(o)}" ${k.jabatan===o?"selected":""}>${escapeHtml(o)}</option>`).join("")}
+    </select>${!TARIF_JABATAN.length?'<div style="font-size:11px;color:var(--muted);margin-top:3px;">Daftar kosong — atur dulu lewat menu Tarif Jabatan.</div>':''}</div>`;
+  }
   function moneyField(label, key){
     return `<div class="field-inline"><label class="f-label">${label}</label><div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-detail-field="${key}" data-money="1" value="${k[key]?k[key].toLocaleString('id-ID'):''}"></div></div>`;
   }
@@ -674,7 +682,7 @@ function openDetailModal(karyawanId, onSaved){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
       ${field("Nama Lengkap","nama")}
       ${unitSelectField()}
-      ${field("Jabatan","jabatan")}
+      ${jabatanSelectField()}
       ${moneyField("Gaji Pokok","gajiPokok")}
       ${field("No HP","noHp")}
     </div>
@@ -786,7 +794,12 @@ function renderDaftar(c){
       <tr data-row="${k.id}">
         <td style="text-align:left;"><input type="text" data-edit="nama" data-id="${k.id}" value="${escapeHtml(k.nama)}" style="width:130px;"></td>
         <td><select data-edit="unitKey" data-id="${k.id}">${UNITS.map(u=>`<option value="${u.key}" ${u.key===k.unitKey?"selected":""}>${escapeHtml(u.label)}</option>`).join("")}</select></td>
-        <td style="text-align:left;"><input type="text" data-edit="jabatan" data-id="${k.id}" value="${escapeHtml(k.jabatan||"")}" style="width:110px;"></td>
+        <td style="text-align:left;">
+          <select data-edit="jabatan" data-id="${k.id}" style="width:130px;">
+            <option value="" ${!k.jabatan?"selected":""}>Anggota Tim</option>
+            ${(TARIF_JABATAN.map(t=>t.nama).concat(k.jabatan&&!TARIF_JABATAN.some(t=>t.nama===k.jabatan)?[k.jabatan]:[])).map(o=>`<option value="${escapeHtml(o)}" ${k.jabatan===o?"selected":""}>${escapeHtml(o)}</option>`).join("")}
+          </select>
+        </td>
         <td><div class="input-money" style="max-width:140px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-edit="gajiPokok" data-id="${k.id}" value="${k.gajiPokok?k.gajiPokok.toLocaleString('id-ID'):''}"></div></td>
         <td><span class="pill ${k.status}">${k.status==="aktif"?"Aktif":"Nonaktif"}</span></td>
         <td><input type="tel" data-edit="noHp" data-id="${k.id}" value="${escapeHtml(k.noHp||"")}" placeholder="08xx" style="width:110px;"></td>
