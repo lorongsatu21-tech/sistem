@@ -587,15 +587,28 @@ function renderDaftar(c){
   function renderList(){
     const rows=[...KARYAWAN].sort((a,b)=>a.nama.localeCompare(b.nama));
     document.getElementById("dkBody").innerHTML = rows.length ? rows.map(k=>`
-      <tr>
-        <td style="text-align:left;">${escapeHtml(k.nama)}</td>
-        <td>${escapeHtml(unitLabel(k.unitKey))}</td>
-        <td>${escapeHtml(k.jabatan||"-")}</td>
-        <td>${formatRupiah(k.gajiPokok)}</td>
+      <tr data-row="${k.id}">
+        <td style="text-align:left;"><input type="text" data-edit="nama" data-id="${k.id}" value="${escapeHtml(k.nama)}" style="width:130px;"></td>
+        <td><select data-edit="unitKey" data-id="${k.id}">${UNITS.map(u=>`<option value="${u.key}" ${u.key===k.unitKey?"selected":""}>${escapeHtml(u.label)}</option>`).join("")}</select></td>
+        <td style="text-align:left;"><input type="text" data-edit="jabatan" data-id="${k.id}" value="${escapeHtml(k.jabatan||"")}" style="width:110px;"></td>
+        <td><div class="input-money" style="max-width:140px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-edit="gajiPokok" data-id="${k.id}" value="${k.gajiPokok?k.gajiPokok.toLocaleString('id-ID'):''}"></div></td>
         <td><span class="pill ${k.status}">${k.status==="aktif"?"Aktif":"Nonaktif"}</span></td>
-        <td>${escapeHtml(k.noHp||"-")}</td>
+        <td><input type="tel" data-edit="noHp" data-id="${k.id}" value="${escapeHtml(k.noHp||"")}" placeholder="08xx" style="width:110px;"></td>
         <td><button class="btn btn-ghost btn-sm" data-toggle="${k.id}">${k.status==="aktif"?"Nonaktifkan":"Aktifkan"}</button> <button class="btn btn-danger btn-sm" data-del="${k.id}">Hapus</button></td>
       </tr>`).join("") : `<tr><td colspan="7" class="empty-state">Belum ada karyawan.</td></tr>`;
+
+    document.querySelectorAll('[data-edit="gajiPokok"]').forEach(inp=>{
+      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
+    });
+    document.querySelectorAll("[data-edit]").forEach(el=>{
+      el.addEventListener("change", async ()=>{
+        const id=el.getAttribute("data-id"); const field=el.getAttribute("data-edit");
+        const k=KARYAWAN.find(x=>x.id===id); if(!k) return;
+        k[field] = field==="gajiPokok" ? parseMoneyInput(el.value) : el.value.trim();
+        const ok=await saveKaryawan();
+        showToast(ok?"Tersimpan":"Gagal tersimpan — coba lagi");
+      });
+    });
     document.querySelectorAll("[data-toggle]").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         const k=KARYAWAN.find(x=>x.id===btn.getAttribute("data-toggle"));
