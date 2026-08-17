@@ -596,7 +596,9 @@ function renderDashboard(c){
 /* ================= DAFTAR KARYAWAN ================= */
 /* ================= MODAL DETAIL KARYAWAN (data lengkap) ================= */
 function openDetailModal(karyawanId, onSaved){
-  const k=KARYAWAN.find(x=>x.id===karyawanId); if(!k) return;
+  const isNew = !karyawanId;
+  const k = isNew ? { id:uid(), nama:"", unitKey:"", jabatan:"", gajiPokok:0, status:"aktif", noHp:"" } : KARYAWAN.find(x=>x.id===karyawanId);
+  if(!k) return;
   const overlay=document.createElement("div"); overlay.className="modal-overlay";
   const box=document.createElement("div"); box.className="modal-box"; box.style.maxWidth="600px"; box.style.maxHeight="85vh"; box.style.overflowY="auto";
 
@@ -611,9 +613,26 @@ function openDetailModal(karyawanId, onSaved){
       <option value="">- Pilih -</option>${options.map(o=>`<option value="${o}" ${k[key]===o?"selected":""}>${o}</option>`).join("")}
     </select></div>`;
   }
+  function unitSelectField(){
+    return `<div class="field-inline"><label class="f-label">Unit</label><select data-detail-field="unitKey">
+      <option value="">- Pilih Unit -</option>${UNITS.map(u=>`<option value="${u.key}" ${k.unitKey===u.key?"selected":""}>${escapeHtml(u.label)}</option>`).join("")}
+    </select></div>`;
+  }
+  function moneyField(label, key){
+    return `<div class="field-inline"><label class="f-label">${label}</label><div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-detail-field="${key}" data-money="1" value="${k[key]?k[key].toLocaleString('id-ID'):''}"></div></div>`;
+  }
 
   box.innerHTML=`
-    <div class="modal-msg" style="font-weight:700;font-size:15px;margin-bottom:14px;">Detail Lengkap — ${escapeHtml(k.nama)}</div>
+    <div class="modal-msg" style="font-weight:700;font-size:15px;margin-bottom:14px;">${isNew?"Formulir Karyawan Baru":"Detail Lengkap — "+escapeHtml(k.nama)}</div>
+
+    <div class="section-title" style="font-size:13px;">Data Dasar</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+      ${field("Nama Lengkap","nama")}
+      ${unitSelectField()}
+      ${field("Jabatan","jabatan")}
+      ${moneyField("Gaji Pokok","gajiPokok")}
+      ${field("No HP","noHp")}
+    </div>
 
     <div class="section-title" style="font-size:13px;">Data Pribadi</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
@@ -652,51 +671,48 @@ function openDetailModal(karyawanId, onSaved){
     <div style="margin-bottom:16px;">${field("Catatan","catatan","textarea")}</div>
 
     <div class="modal-actions">
-      <button class="btn btn-ghost" data-act="cancel">Tutup</button>
-      <button class="btn btn-primary" data-act="save">Simpan Detail</button>
+      <button class="btn btn-ghost" data-act="cancel">Batal</button>
+      <button class="btn btn-primary" data-act="save">${isNew?"Tambah Karyawan":"Simpan Detail"}</button>
     </div>
   `;
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 
+  box.querySelectorAll('[data-money="1"]').forEach(inp=>{
+    inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
+  });
   const tglMulaiInput=box.querySelector('[data-detail-field="tanggalMulaiKerja"]');
   if(tglMulaiInput) tglMulaiInput.addEventListener("change", ()=>{ box.querySelector("#dtMasaKerja").textContent=masaKerjaText(tglMulaiInput.value); });
 
   box.querySelector('[data-act="cancel"]').addEventListener("click", ()=>document.body.removeChild(overlay));
   overlay.addEventListener("click",(e)=>{ if(e.target===overlay) document.body.removeChild(overlay); });
   box.querySelector('[data-act="save"]').addEventListener("click", async ()=>{
-    KARYAWAN_DETAIL_FIELDS.forEach(key=>{
-      const el=box.querySelector(`[data-detail-field="${key}"]`);
-      if(el) k[key]=el.value.trim();
+    const namaEl=box.querySelector('[data-detail-field="nama"]');
+    if(isNew && !namaEl.value.trim()){ showToast("Isi nama karyawan"); return; }
+    box.querySelectorAll("[data-detail-field]").forEach(el=>{
+      const key=el.getAttribute("data-detail-field");
+      k[key] = el.getAttribute("data-money")==="1" ? parseMoneyInput(el.value) : el.value.trim();
     });
+    if(isNew){ k.status="aktif"; KARYAWAN.push(k); }
     const ok=await saveKaryawan();
     document.body.removeChild(overlay);
-    showToast(ok ? "Detail tersimpan" : "Gagal tersimpan — coba lagi");
+    showToast(ok ? (isNew?"Karyawan ditambahkan":"Detail tersimpan") : "Gagal tersimpan — coba lagi");
     if(onSaved) onSaved();
   });
 }
 
 function renderDaftar(c){
-  const unitOptions=UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
   c.innerHTML=`
-    <div class="card card-pad" style="margin-bottom:20px;">
-      <div class="section-title">Tambah Karyawan Baru</div>
-      <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="field-inline"><label class="f-label">Nama</label><input type="text" id="dkNama" placeholder="Nama lengkap"></div>
-        <div class="field-inline"><label class="f-label">Unit</label><select id="dkUnit">${unitOptions}</select></div>
-        <div class="field-inline"><label class="f-label">Jabatan</label><input type="text" id="dkJabatan" placeholder="mis. Kasir"></div>
-        <div class="field-inline"><label class="f-label">Gaji Pokok</label><div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" id="dkGaji" placeholder="0"></div></div>
-        <div class="field-inline"><label class="f-label">No HP</label><input type="tel" id="dkHp" placeholder="08xx"></div>
-      </div>
-      <button class="btn btn-primary" id="dkTambah">+ Tambah Karyawan</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="section-title" style="margin:0;">Daftar Karyawan</div>
+      <button class="btn btn-primary" id="dkTambahBaru">+ Karyawan Baru</button>
     </div>
-    <div class="section-title">Daftar Karyawan</div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Nama</th><th>Unit</th><th>Jabatan</th><th>Gaji Pokok</th><th>Status</th><th>No HP</th><th></th></tr></thead>
       <tbody id="dkBody"></tbody>
     </table></div>
   `;
-  document.getElementById("dkGaji").addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
+  document.getElementById("dkTambahBaru").addEventListener("click", ()=>openDetailModal(null, renderList));
 
   function renderList(){
     const rows=[...KARYAWAN].sort((a,b)=>a.nama.localeCompare(b.nama));
@@ -742,18 +758,6 @@ function renderDaftar(c){
       });
     });
   }
-  document.getElementById("dkTambah").addEventListener("click", async ()=>{
-    const nama=document.getElementById("dkNama").value.trim();
-    const unitKey=document.getElementById("dkUnit").value;
-    const jabatan=document.getElementById("dkJabatan").value.trim();
-    const gajiPokok=parseMoneyInput(document.getElementById("dkGaji").value);
-    const noHp=document.getElementById("dkHp").value.trim();
-    if(!nama){ showToast("Isi nama karyawan"); return; }
-    KARYAWAN.push({ id:uid(), nama, unitKey, jabatan, gajiPokok, status:"aktif", noHp });
-    await saveKaryawan();
-    document.getElementById("dkNama").value=""; document.getElementById("dkJabatan").value=""; document.getElementById("dkGaji").value=""; document.getElementById("dkHp").value="";
-    renderList(); showToast("Karyawan ditambahkan");
-  });
   renderList();
 }
 
