@@ -652,12 +652,13 @@ async function saveTutupBuku(){
   return sheetsConfigured ? sheetsReplaceAll(SHEET_TUTUP_BUKU, HDR_TUTUP_BUKU, rowsFromTutupBuku()) : true;
 }
 
+function targetUnitLabel(key){ return key ? unitLabel(key) : "Semua Unit"; }
 function rowsFromTargetOmzet(){
   const rows=[];
   Object.keys(TARGET_OMZET).forEach(unitKey=>{
     Object.keys(TARGET_OMZET[unitKey]).forEach(ym=>{
       const v=TARGET_OMZET[unitKey][ym];
-      if(v>0) rows.push({ "Unit":unitLabel(unitKey), "Bulan":asText(ym), "Target":v });
+      if(v>0) rows.push({ "Unit":targetUnitLabel(unitKey), "Bulan":asText(ym), "Target":v });
     });
   });
   return rows;
@@ -665,7 +666,9 @@ function rowsFromTargetOmzet(){
 function targetOmzetFromRows(rows, unitsList){
   const byLabel=unitByLabelMap(unitsList); const result={};
   rows.forEach(r=>{
-    const key=byLabel[String(r["Unit"]||"").trim().toLowerCase()]; if(!key) return;
+    const labelRaw=String(r["Unit"]||"").trim();
+    const key = labelRaw.toLowerCase()==="semua unit" ? "" : byLabel[labelRaw.toLowerCase()];
+    if(key===undefined) return;
     const ym=String(r["Bulan"]||"").replace(/^'/,"").trim(); if(!ym) return;
     if(!result[key]) result[key]={};
     result[key][ym]=Number(r["Target"])||0;
@@ -2045,7 +2048,7 @@ function renderAnalisis(c){
 /* ================= PENGATURAN (UNIT) ================= */
 /* ================= TARGET & BONUS ================= */
 function renderTargetBonus(c){
-  const unitOptions = UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  const unitOptions = `<option value="">Semua Unit</option>` + UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
   const years = yearsPresent(); const curYr=String(new Date().getFullYear());
   if(!years.includes(curYr)) years.unshift(curYr);
   const yearOptions = [...new Set(years)].sort((a,b)=>b.localeCompare(a)).map(y=>`<option value="${y}">${y}</option>`).join("");
@@ -2074,6 +2077,7 @@ function renderTargetBonus(c){
 
   function realisasiForMonth(unitKey, year, m){
     const {from,to}=monthRange(year,m);
+    if(!unitKey){ return UNITS.reduce((s,u)=>s+unitIncomeInRange(u.key,from,to).kas,0); }
     return unitIncomeInRange(unitKey,from,to).kas;
   }
   function readTargetInputs(){
