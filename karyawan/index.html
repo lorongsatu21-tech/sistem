@@ -501,13 +501,14 @@ async function saveBonus(){ return sheetsReplaceAll(SHEET_BONUS, HDR_BONUS, rows
 /* ================= NAV / ROUTER ================= */
 const NAV=[
   { group:"Utama", items:[ {id:"sampul",label:"Sampul"}, {id:"dashboard",label:"Dashboard"} ] },
-  { group:"Karyawan", items:[ {id:"daftar",label:"Daftar Karyawan"} ] },
+  { group:"Karyawan", items:[ {id:"daftar",label:"Daftar Karyawan"}, {id:"dokumen",label:"Formulir & Surat"} ] },
   { group:"Pembayaran", items:[ {id:"gaji",label:"Gaji Bulanan"}, {id:"bonus",label:"Bonus"} ] }
 ];
 const PAGE_META={
   "sampul":["Sampul","LORONGSATU21 — Karyawan"],
   "dashboard":["Dashboard","Ringkasan karyawan dan pembayaran"],
   "daftar":["Daftar Karyawan","Kelola data karyawan per unit"],
+  "dokumen":["Formulir & Surat","Formulir data karyawan baru dan surat pernyataan, siap diprint"],
   "gaji":["Gaji Bulanan","Catat pembayaran gaji tiap bulan"],
   "bonus":["Bonus","Bonus karyawan berdasarkan pencapaian target omzet unit"]
 };
@@ -539,7 +540,7 @@ function navigateTo(id){
   currentPage=id||"dashboard";
   setActiveNav(currentPage);
   const c=document.getElementById("pageContent");
-  const renderers={ "sampul":renderSampul,"dashboard":renderDashboard,"daftar":renderDaftar,"gaji":renderGaji,"bonus":renderBonus };
+  const renderers={ "sampul":renderSampul,"dashboard":renderDashboard,"daftar":renderDaftar,"dokumen":renderDokumen,"gaji":renderGaji,"bonus":renderBonus };
   try{ (renderers[currentPage]||renderDashboard)(c); }
   catch(err){ console.error("Render error",currentPage,err); c.innerHTML=`<div class="empty-state">Terjadi kendala membuka halaman ini.</div>`; }
 }
@@ -716,6 +717,25 @@ function openDetailModal(karyawanId, onSaved){
     showToast(ok ? (isNew?"Karyawan ditambahkan":"Detail tersimpan") : "Gagal tersimpan — coba lagi");
     if(onSaved) onSaved();
   });
+}
+
+/* ================= DOKUMEN (Formulir & Surat) ================= */
+function renderDokumen(c){
+  c.innerHTML=`
+    <div class="card card-pad" style="max-width:560px;">
+      <div class="section-title">Formulir Data Karyawan Baru & Surat Pernyataan</div>
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:16px;">
+        Dokumen siap print (2 halaman): halaman pertama formulir data karyawan lengkap
+        (Data Dasar, Data Pribadi, Kepegawaian, Pendidikan & Pengalaman, Keluarga & Kontak Darurat),
+        halaman kedua Surat Pernyataan Kesanggupan dan Kesediaan Bekerja.
+        Print dan berikan ke calon karyawan baru untuk diisi tangan sebelum datanya disalin ke aplikasi ini
+        lewat menu <b>Daftar Karyawan → Karyawan Baru</b>.
+      </div>
+      <a href="./formulir-karyawan-baru.pdf" target="_blank" rel="noopener" class="btn btn-primary" style="text-decoration:none;display:inline-block;">
+        Unduh / Buka Formulir (PDF)
+      </a>
+    </div>
+  `;
 }
 
 function renderDaftar(c){
