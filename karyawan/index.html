@@ -86,6 +86,30 @@ a{color:inherit;}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
 @media (max-width:900px){.grid2,.grid3,.grid4{grid-template-columns:1fr 1fr;}}
+
+/* ===== STRUK GAJI ===== */
+.struk-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media (max-width:700px){.struk-grid{grid-template-columns:1fr;}}
+.struk-card{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:var(--shadow);}
+.struk-card .struk-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--navy);}
+.struk-card .struk-head .struk-no{color:#8fae9a;font-size:11px;font-weight:700;}
+.struk-card .struk-head .struk-nama{color:#f2efe4;font-size:13px;font-weight:700;flex:1;padding:0 8px;}
+.struk-card .struk-head .struk-bulan{background:var(--gold);color:#2a2005;font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;white-space:nowrap;}
+.struk-card .struk-masakerja{font-size:11px;color:var(--muted);text-align:center;padding:6px 0;border-bottom:1px solid var(--line);font-style:italic;}
+.struk-card .struk-row{display:flex;justify-content:space-between;padding:7px 12px;font-size:12.5px;border-bottom:1px solid #f1eee2;}
+.struk-card .struk-row .lbl{color:var(--ink);}
+.struk-card .struk-row .val{font-weight:600;}
+.struk-card .struk-jumlah{display:flex;justify-content:space-between;padding:9px 12px;background:var(--danger);color:#fff;font-weight:700;font-size:13.5px;}
+
+@media print{
+  .sidebar, .topheader, .hamburger, .no-print{display:none !important;}
+  .app, .main{margin:0 !important;}
+  .page-content{padding:0 !important;max-width:none !important;}
+  body{background:#fff !important;}
+  .struk-grid{grid-template-columns:1fr 1fr;gap:8mm;}
+  .struk-card{break-inside:avoid;box-shadow:none;border:1px solid #999;}
+}
+
 @media (max-width:600px){.grid2,.grid3,.grid4{grid-template-columns:1fr;}}
 
 .stat-card{background:var(--paper-2);border:1px solid var(--line);border-left:4px solid var(--moss);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);}
@@ -530,7 +554,7 @@ function tarifUntukJabatan(namaJabatan){
 const NAV=[
   { group:"Utama", items:[ {id:"sampul",label:"Sampul"}, {id:"dashboard",label:"Dashboard"} ] },
   { group:"Karyawan", items:[ {id:"daftar",label:"Daftar Karyawan"}, {id:"dokumen",label:"Formulir & Surat"} ] },
-  { group:"Pembayaran", items:[ {id:"gaji",label:"Gaji Bulanan"}, {id:"bonus",label:"Bonus"}, {id:"tarif",label:"Tarif Jabatan"} ] }
+  { group:"Pembayaran", items:[ {id:"gaji",label:"Gaji Bulanan"}, {id:"bonus",label:"Bonus"}, {id:"tarif",label:"Tarif Jabatan"}, {id:"struk",label:"Struk Gaji"} ] }
 ];
 const PAGE_META={
   "sampul":["Sampul","LORONGSATU21 — Karyawan"],
@@ -539,7 +563,8 @@ const PAGE_META={
   "dokumen":["Formulir & Surat","Formulir data karyawan baru dan surat pernyataan, siap diprint"],
   "gaji":["Gaji Bulanan","Catat pembayaran gaji tiap bulan"],
   "bonus":["Bonus","Bonus karyawan berdasarkan pencapaian target omzet unit"],
-  "tarif":["Tarif Jabatan","Urutan jabatan, kelipatan, dan nilai basis tunjangan"]
+  "tarif":["Tarif Jabatan","Urutan jabatan, kelipatan, dan nilai basis tunjangan"],
+  "struk":["Struk Gaji","Cetak struk gaji per karyawan, siap print"]
 };
 let currentPage="dashboard";
 function buildNav(){
@@ -569,7 +594,7 @@ function navigateTo(id){
   currentPage=id||"dashboard";
   setActiveNav(currentPage);
   const c=document.getElementById("pageContent");
-  const renderers={ "sampul":renderSampul,"dashboard":renderDashboard,"daftar":renderDaftar,"dokumen":renderDokumen,"gaji":renderGaji,"bonus":renderBonus,"tarif":renderTarifJabatan };
+  const renderers={ "sampul":renderSampul,"dashboard":renderDashboard,"daftar":renderDaftar,"dokumen":renderDokumen,"gaji":renderGaji,"bonus":renderBonus,"tarif":renderTarifJabatan,"struk":renderStrukGaji };
   try{ (renderers[currentPage]||renderDashboard)(c); }
   catch(err){ console.error("Render error",currentPage,err); c.innerHTML=`<div class="empty-state">Terjadi kendala membuka halaman ini.</div>`; }
 }
@@ -945,6 +970,70 @@ function renderTarifJabatan(c){
     showToast(ok?"Tarif jabatan tersimpan":"Gagal menyimpan");
   });
   renderList();
+}
+
+/* ================= STRUK GAJI ================= */
+function renderStrukGaji(c){
+  const now=new Date();
+  const monthOptions=MONTH_NAMES.map((mn,i)=>`<option value="${i+1}">${mn}</option>`).join("");
+  const years=[...new Set([now.getFullYear(), now.getFullYear()-1])].sort((a,b)=>b-a);
+  const yearOptions=years.map(y=>`<option value="${y}">${y}</option>`).join("");
+  const unitOptions=`<option value="">Semua Unit</option>`+UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+  c.innerHTML=`
+    <div class="controlbar no-print">
+      <div class="field-inline"><label class="f-label">Tahun</label><select id="skTahun">${yearOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Bulan</label><select id="skBulan">${monthOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Unit</label><select id="skUnit">${unitOptions}</select></div>
+      <button class="btn btn-primary" id="skPrint" style="align-self:end;">🖨️ Print / Simpan sebagai PDF</button>
+    </div>
+    <div id="skWrap"></div>
+  `;
+  document.getElementById("skBulan").value=String(now.getMonth()+1);
+
+  function render(){
+    const year=document.getElementById("skTahun").value;
+    const m=String(document.getElementById("skBulan").value).padStart(2,"0");
+    const ym=`${year}-${m}`;
+    const unitKey=document.getElementById("skUnit").value;
+    const bulanLabel=`${MONTH_NAMES[parseInt(m,10)-1]} ${year}`;
+
+    let daftar=KARYAWAN.filter(k=>k.status==="aktif");
+    if(unitKey) daftar=daftar.filter(k=>k.unitKey===unitKey);
+    daftar=daftar.sort((a,b)=>a.nama.localeCompare(b.nama));
+
+    if(!daftar.length){
+      document.getElementById("skWrap").innerHTML=`<div class="empty-state">Belum ada karyawan aktif untuk kriteria ini.</div>`;
+      return;
+    }
+
+    const cards = daftar.map((k,idx)=>{
+      const gajiRec = GAJI.find(g=>g.karyawanId===k.id && g.bulan===ym);
+      const bonusRec = BONUS.filter(b=>b.karyawanId===k.id && b.bulan===ym).reduce((s,b)=>s+b.jumlah,0);
+      const gajiAmount = gajiRec ? gajiRec.jumlah : 0;
+      const tunjangan = gajiRec ? (gajiRec.tunjanganJabatan||0) : 0;
+      const total = gajiAmount + tunjangan + bonusRec;
+      return `
+        <div class="struk-card">
+          <div class="struk-head">
+            <span class="struk-no">${idx+1}</span>
+            <span class="struk-nama">${escapeHtml(k.nama.toUpperCase())}</span>
+            <span class="struk-bulan">${bulanLabel}</span>
+          </div>
+          <div class="struk-masakerja">(Masa Kerja ${masaKerjaText(k.tanggalMulaiKerja)})</div>
+          <div class="struk-row"><span class="lbl">Gaji</span><span class="val">${formatRupiah(gajiAmount)}</span></div>
+          ${tunjangan>0?`<div class="struk-row"><span class="lbl">Tunjangan Jabatan${k.jabatan?' ('+escapeHtml(k.jabatan)+')':''}</span><span class="val">${formatRupiah(tunjangan)}</span></div>`:''}
+          <div class="struk-row"><span class="lbl">Bonus</span><span class="val">${formatRupiah(bonusRec)}</span></div>
+          <div class="struk-jumlah"><span>Jumlah</span><span>${formatRupiah(total)}</span></div>
+        </div>`;
+    }).join("");
+
+    document.getElementById("skWrap").innerHTML = `<div class="struk-grid">${cards}</div>`;
+  }
+  document.getElementById("skTahun").addEventListener("change", render);
+  document.getElementById("skBulan").addEventListener("change", render);
+  document.getElementById("skUnit").addEventListener("change", render);
+  document.getElementById("skPrint").addEventListener("click", ()=>window.print());
+  render();
 }
 
 function renderGaji(c){
