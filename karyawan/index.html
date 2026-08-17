@@ -432,6 +432,7 @@ function customConfirm(message, okLabel){
 }
 
 /* ================= REALISASI OMZET & BONUS (logika sama dengan aplikasi Keuangan) ================= */
+const FAKTOR_RIBUAN = 1000; // seluruh data di aplikasi (Keuangan & Karyawan) tersimpan dalam notasi ribuan; hanya Struk Gaji yang menampilkan nilai riil (x1000)
 function realisasiOmzetForMonth(unitKey, year, m){
   const {from,to}=monthRange(year,m);
   let total=0;
@@ -708,7 +709,7 @@ function openDetailModal(karyawanId, onSaved){
       ${field("Nama Lengkap","nama")}
       ${unitSelectField()}
       ${jabatanSelectField()}
-      ${moneyField("Gaji Pokok","gajiPokok")}
+      ${moneyField("Gaji Pokok (notasi ribuan)","gajiPokok")}
       ${field("No HP","noHp")}
     </div>
 
@@ -885,7 +886,7 @@ function renderTarifJabatan(c){
         Nominal ini otomatis jadi usulan Tunjangan Jabatan di halaman Gaji Bulanan sesuai jabatan tiap karyawan (tetap bisa diedit manual per orang).
       </div>
       <div class="field-inline" style="max-width:220px;margin-bottom:14px;">
-        <label class="f-label">Nilai Basis (Rp)</label>
+        <label class="f-label">Nilai Basis (notasi ribuan)</label>
         <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" id="tfBasis" placeholder="0"></div>
       </div>
     </div>
@@ -980,6 +981,7 @@ function renderStrukGaji(c){
   const yearOptions=years.map(y=>`<option value="${y}">${y}</option>`).join("");
   const unitOptions=`<option value="">Semua Unit</option>`+UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
   c.innerHTML=`
+    <div class="no-print" style="font-size:11.5px;color:var(--muted);margin-bottom:12px;">Halaman ini menampilkan <b>nilai riil</b> (angka yang tersimpan × 1000) — satu-satunya tempat di aplikasi yang menampilkan angka riil, bukan notasi ribuan.</div>
     <div class="controlbar no-print">
       <div class="field-inline"><label class="f-label">Tahun</label><select id="skTahun">${yearOptions}</select></div>
       <div class="field-inline"><label class="f-label">Bulan</label><select id="skBulan">${monthOptions}</select></div>
@@ -1008,9 +1010,10 @@ function renderStrukGaji(c){
 
     const cards = daftar.map((k,idx)=>{
       const gajiRec = GAJI.find(g=>g.karyawanId===k.id && g.bulan===ym);
-      const bonusRec = BONUS.filter(b=>b.karyawanId===k.id && b.bulan===ym).reduce((s,b)=>s+b.jumlah,0);
-      const gajiAmount = gajiRec ? gajiRec.jumlah : 0;
-      const tunjangan = gajiRec ? (gajiRec.tunjanganJabatan||0) : 0;
+      const bonusRecRaw = BONUS.filter(b=>b.karyawanId===k.id && b.bulan===ym).reduce((s,b)=>s+b.jumlah,0);
+      const gajiAmount = (gajiRec ? gajiRec.jumlah : 0) * FAKTOR_RIBUAN;
+      const tunjangan = (gajiRec ? (gajiRec.tunjanganJabatan||0) : 0) * FAKTOR_RIBUAN;
+      const bonusRec = bonusRecRaw * FAKTOR_RIBUAN;
       const total = gajiAmount + tunjangan + bonusRec;
       return `
         <div class="struk-card">
@@ -1042,6 +1045,7 @@ function renderGaji(c){
   const years=[...new Set([now.getFullYear(), now.getFullYear()-1, now.getFullYear()+1])].sort((a,b)=>b-a);
   const yearOptions=years.map(y=>`<option value="${y}">${y}</option>`).join("");
   c.innerHTML=`
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;">Isi semua angka dalam <b>notasi ribuan</b> (mis. gaji Rp1.500.000 riil → ketik <b>1500</b>), konsisten dengan aplikasi Keuangan. Nilai riil otomatis ditampilkan di halaman <b>Struk Gaji</b>.</div>
     <div class="controlbar">
       <div class="field-inline"><label class="f-label">Tahun</label><select id="gjTahun">${yearOptions}</select></div>
       <div class="field-inline"><label class="f-label">Bulan</label><select id="gjBulan">${monthOptions}</select></div>
@@ -1155,6 +1159,7 @@ function renderBonus(c){
       <div class="field-inline"><label class="f-label">Bulan</label><select id="bnBulan">${monthOptions}</select></div>
     </div>
     <div class="card card-pad" style="margin-bottom:18px;" id="bnPoolCard"></div>
+    <div style="font-size:11.5px;color:var(--muted);margin:-10px 0 18px;">Catatan: seluruh angka di halaman ini (Target, Realisasi, Bonus Pool, dan yang dibagikan ke karyawan) memakai <b>notasi ribuan</b>, konsisten dengan aplikasi Keuangan. Nilai riil (dikali 1000) hanya ditampilkan di halaman <b>Struk Gaji</b>.</div>
 
     <div class="card card-pad" style="margin-bottom:16px;">
       <div class="section-title" style="font-size:13px;">Bagi Otomatis berdasarkan Kompetensi & Masa Kerja</div>
