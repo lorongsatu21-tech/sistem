@@ -220,7 +220,7 @@ const HDR_KARYAWAN=["Nama","Unit","Jabatan","Gaji Pokok","Status","No HP",
   "Tanggal Mulai Kerja","Jenis Karyawan","Level Kompetensi",
   "Nama Orang Tua","Jumlah Saudara","Kontak Darurat Nama","Kontak Darurat HP","Kontak Darurat Hubungan",
   "Pendidikan Terakhir","Tahun Lulus","Pengalaman Kerja","Masa Kerja Sebelumnya","Catatan"];
-const HDR_GAJI=["Tanggal Bayar","Karyawan","Bulan","Jumlah","Keterangan"];
+const HDR_GAJI=["Tanggal Bayar","Karyawan","Bulan","Jumlah","Tunjangan Jabatan","Keterangan"];
 const HDR_BONUS=["Tanggal Bayar","Karyawan","Unit","Bulan","Jumlah"];
 const MONTH_NAMES=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
@@ -368,6 +368,14 @@ function parseMoneyInput(str){ if(!str) return 0; const c=String(str).replace(/[
 function escapeHtml(str){ return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function unitLabel(key){ const u=UNITS.find(x=>x.key===key); return u?u.label:(key||"-"); }
 function karyawanLabel(id){ const k=KARYAWAN.find(x=>x.id===id); return k?k.nama:id; }
+function masaKerjaBulanCount(tanggalMulai){
+  if(!tanggalMulai) return 0;
+  const mulai=new Date(tanggalMulai+"T00:00:00"); const now=new Date();
+  if(isNaN(mulai.getTime()) || mulai>now) return 0;
+  let bulan=(now.getFullYear()-mulai.getFullYear())*12 + (now.getMonth()-mulai.getMonth());
+  if(now.getDate()<mulai.getDate()) bulan--;
+  return Math.max(0, bulan);
+}
 function masaKerjaText(tanggalMulai){
   if(!tanggalMulai) return "-";
   const mulai=new Date(tanggalMulai+"T00:00:00"); const now=new Date();
@@ -453,7 +461,7 @@ function karyawanFromRows(rows, unitsList){
 }
 
 function rowsFromGaji(){
-  return GAJI.map(g=>({ "Tanggal Bayar":asText(g.tanggalBayar), "Karyawan":karyawanLabel(g.karyawanId), "Bulan":asText(g.bulan), "Jumlah":g.jumlah||0, "Keterangan":g.keterangan||"" }));
+  return GAJI.map(g=>({ "Tanggal Bayar":asText(g.tanggalBayar), "Karyawan":karyawanLabel(g.karyawanId), "Bulan":asText(g.bulan), "Jumlah":g.jumlah||0, "Tunjangan Jabatan":g.tunjanganJabatan||0, "Keterangan":g.keterangan||"" }));
 }
 function gajiFromRows(rows, karyawanList){
   const byNama={}; karyawanList.forEach(k=>{ byNama[k.nama.trim().toLowerCase()]=k.id; });
@@ -461,7 +469,7 @@ function gajiFromRows(rows, karyawanList){
     const karyawanId=byNama[String(r["Karyawan"]||"").trim().toLowerCase()]; if(!karyawanId) return null;
     const tanggalBayar=normalizeDateCell(r["Tanggal Bayar"])||String(r["Tanggal Bayar"]||"").replace(/^'/,"");
     const bulan=String(r["Bulan"]||"").replace(/^'/,"").trim();
-    return { id:uid(), karyawanId, bulan, jumlah:Number(r["Jumlah"])||0, tanggalBayar, keterangan:r["Keterangan"]||"" };
+    return { id:uid(), karyawanId, bulan, jumlah:Number(r["Jumlah"])||0, tunjanganJabatan:Number(r["Tunjangan Jabatan"])||0, tanggalBayar, keterangan:r["Keterangan"]||"" };
   }).filter(Boolean);
 }
 
@@ -810,7 +818,7 @@ function renderGaji(c){
       <div class="field-inline"><label class="f-label">Bulan</label><select id="gjBulan">${monthOptions}</select></div>
     </div>
     <div class="tbl-wrap" style="margin-bottom:22px;"><table>
-      <thead><tr><th>Nama</th><th>Unit</th><th>Gaji Pokok</th><th>Jumlah Dibayar</th><th>Keterangan</th><th></th></tr></thead>
+      <thead><tr><th>Nama</th><th>Jabatan</th><th>Gaji Pokok</th><th>Jumlah Dibayar</th><th>Tunjangan Jabatan</th><th>Keterangan</th><th></th></tr></thead>
       <tbody id="gjBody"></tbody>
       <tfoot><tr id="gjFoot"></tr></tfoot>
     </table></div>
@@ -819,7 +827,7 @@ function renderGaji(c){
 
     <div class="section-title" style="margin-top:26px;">Riwayat Pembayaran Gaji</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Bulan</th><th>Jumlah</th><th>Keterangan</th><th></th></tr></thead>
+      <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Bulan</th><th>Jumlah</th><th>Tunjangan Jabatan</th><th>Keterangan</th><th></th></tr></thead>
       <tbody id="gjHistBody"></tbody>
     </table></div>
   `;
@@ -834,19 +842,24 @@ function renderGaji(c){
     document.getElementById("gjBody").innerHTML = aktif.length ? aktif.map(k=>{
       const existing=GAJI.find(g=>g.karyawanId===k.id && g.bulan===currentYm);
       const jumlah = existing ? existing.jumlah : k.gajiPokok;
+      const tunjangan = existing ? (existing.tunjanganJabatan||0) : 0;
       total+=jumlah;
       return `<tr data-karyawan="${k.id}">
         <td style="text-align:left;">${escapeHtml(k.nama)}</td>
-        <td>${escapeHtml(unitLabel(k.unitKey))}</td>
+        <td style="text-align:left;">${escapeHtml(k.jabatan||"-")}</td>
         <td>${formatRupiah(k.gajiPokok)}</td>
         <td><div class="input-money" style="max-width:150px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-gaji-input="${k.id}" value="${jumlah?jumlah.toLocaleString('id-ID'):''}"></div></td>
+        <td><div class="input-money" style="max-width:140px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-tunjangan-input="${k.id}" value="${tunjangan?tunjangan.toLocaleString('id-ID'):''}" placeholder="0"></div></td>
         <td><input type="text" data-ket-input="${k.id}" value="${escapeHtml((existing&&existing.keterangan)||'')}" placeholder="opsional" style="width:100%;"></td>
         <td></td>
       </tr>`;
-    }).join("") : `<tr><td colspan="6" class="empty-state">Belum ada karyawan aktif.</td></tr>`;
-    document.getElementById("gjFoot").innerHTML=`<td colspan="3">Total</td><td>${formatRupiah(total)}</td><td colspan="2"></td>`;
+    }).join("") : `<tr><td colspan="7" class="empty-state">Belum ada karyawan aktif.</td></tr>`;
+    document.getElementById("gjFoot").innerHTML=`<td colspan="3">Total</td><td>${formatRupiah(total)}</td><td colspan="3"></td>`;
     document.querySelectorAll("[data-gaji-input]").forEach(inp=>{
       inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalcTotal(); });
+    });
+    document.querySelectorAll("[data-tunjangan-input]").forEach(inp=>{
+      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
     });
   }
   function recalcTotal(){
@@ -862,9 +875,10 @@ function renderGaji(c){
         <td>${escapeHtml(karyawanLabel(g.karyawanId))}</td>
         <td>${g.bulan}</td>
         <td>${formatRupiah(g.jumlah)}</td>
+        <td>${g.tunjanganJabatan?formatRupiah(g.tunjanganJabatan):"-"}</td>
         <td style="text-align:left;">${escapeHtml(g.keterangan||"-")}</td>
         <td><button class="btn btn-danger btn-sm" data-delgaji="${g.id}">Hapus</button></td>
-      </tr>`).join("") : `<tr><td colspan="6" class="empty-state">Belum ada riwayat.</td></tr>`;
+      </tr>`).join("") : `<tr><td colspan="7" class="empty-state">Belum ada riwayat.</td></tr>`;
     document.querySelectorAll("[data-delgaji]").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         if(await customConfirm("Hapus catatan gaji ini?","Ya, Hapus")){
@@ -881,12 +895,14 @@ function renderGaji(c){
     document.querySelectorAll("[data-gaji-input]").forEach(inp=>{
       const karyawanId=inp.getAttribute("data-gaji-input");
       const jumlah=parseMoneyInput(inp.value);
+      const tunjInput=document.querySelector(`[data-tunjangan-input="${karyawanId}"]`);
+      const tunjanganJabatan=tunjInput?parseMoneyInput(tunjInput.value):0;
       const ketInput=document.querySelector(`[data-ket-input="${karyawanId}"]`);
       const keterangan=ketInput?ketInput.value.trim():"";
-      if(!jumlah) return;
+      if(!jumlah && !tunjanganJabatan) return;
       const existing=GAJI.find(g=>g.karyawanId===karyawanId && g.bulan===currentYm);
-      if(existing){ existing.jumlah=jumlah; existing.keterangan=keterangan; }
-      else{ GAJI.push({ id:uid(), karyawanId, bulan:currentYm, jumlah, tanggalBayar:todayStr(), keterangan }); }
+      if(existing){ existing.jumlah=jumlah; existing.tunjanganJabatan=tunjanganJabatan; existing.keterangan=keterangan; }
+      else{ GAJI.push({ id:uid(), karyawanId, bulan:currentYm, jumlah, tunjanganJabatan, tanggalBayar:todayStr(), keterangan }); }
     });
     const ok=await saveGaji();
     document.getElementById("gjStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Gagal tersimpan — coba lagi";
@@ -910,12 +926,24 @@ function renderBonus(c){
       <div class="field-inline"><label class="f-label">Bulan</label><select id="bnBulan">${monthOptions}</select></div>
     </div>
     <div class="card card-pad" style="margin-bottom:18px;" id="bnPoolCard"></div>
+
+    <div class="card card-pad" style="margin-bottom:16px;">
+      <div class="section-title" style="font-size:13px;">Bagi Otomatis berdasarkan Kompetensi & Masa Kerja</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Bobot bisa disesuaikan, jumlahnya harus 100%. Jabatan <b>tidak</b> ikut dihitung di sini — tunjangan jabatan diatur terpisah lewat halaman Gaji Bulanan.</div>
+      <div style="display:flex;gap:14px;align-items:end;flex-wrap:wrap;">
+        <div class="field-inline" style="max-width:150px;"><label class="f-label">Bobot Level Kompetensi (%)</label><input type="number" id="bnBobotLevel" min="0" max="100" value="60"></div>
+        <div class="field-inline" style="max-width:150px;"><label class="f-label">Bobot Masa Kerja (%)</label><input type="number" id="bnBobotMasaKerja" min="0" max="100" value="40"></div>
+        <button class="btn btn-primary btn-sm" id="bnBagiOtomatis">Hitung & Bagi Otomatis</button>
+        <span id="bnBobotNote" style="font-size:12px;font-weight:600;"></span>
+      </div>
+    </div>
+
     <div class="tbl-wrap" style="margin-bottom:16px;"><table>
-      <thead><tr><th>Nama</th><th>Jabatan</th><th>Bagian Bonus</th></tr></thead>
+      <thead><tr><th>Nama</th><th>Level</th><th>Masa Kerja</th><th>Bagian Bonus</th></tr></thead>
       <tbody id="bnBody"></tbody>
       <tfoot><tr id="bnFoot"></tr></tfoot>
     </table></div>
-    <button class="btn btn-ghost btn-sm" id="bnBagiRata">Bagi Rata ke Semua Karyawan Unit Ini</button>
+    <button class="btn btn-ghost btn-sm" id="bnBagiRata">Bagi Rata Saja (tanpa mempertimbangkan level/masa kerja)</button>
     <button class="btn btn-primary" id="bnSimpan" style="margin-left:8px;">Simpan Pembayaran Bonus</button>
     <span id="bnStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
 
@@ -949,10 +977,11 @@ function renderBonus(c){
     document.getElementById("bnBody").innerHTML = daftar.length ? daftar.map(k=>`
       <tr data-karyawan="${k.id}">
         <td style="text-align:left;">${escapeHtml(k.nama)}</td>
-        <td style="text-align:left;">${escapeHtml(k.jabatan||"-")}</td>
+        <td>${escapeHtml(k.levelKompetensi||"-")}</td>
+        <td>${escapeHtml(masaKerjaText(k.tanggalMulaiKerja))}</td>
         <td><div class="input-money" style="max-width:150px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-bonus-input="${k.id}" placeholder="0"></div></td>
-      </tr>`).join("") : `<tr><td colspan="3" class="empty-state">Belum ada karyawan aktif di unit ini.</td></tr>`;
-    document.getElementById("bnFoot").innerHTML=`<td colspan="2">Total Dibagikan</td><td>Rp 0</td>`;
+      </tr>`).join("") : `<tr><td colspan="4" class="empty-state">Belum ada karyawan aktif di unit ini.</td></tr>`;
+    document.getElementById("bnFoot").innerHTML=`<td colspan="3">Total Dibagikan</td><td>Rp 0</td>`;
     document.querySelectorAll("[data-bonus-input]").forEach(inp=>{
       inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalcBonusTotal(); });
     });
@@ -985,6 +1014,44 @@ function renderBonus(c){
   document.getElementById("bnUnit").addEventListener("change", refreshAll);
   document.getElementById("bnTahun").addEventListener("change", refreshAll);
   document.getElementById("bnBulan").addEventListener("change", refreshAll);
+  function updateBobotNote(){
+    const bl=parseFloat(document.getElementById("bnBobotLevel").value)||0;
+    const bm=parseFloat(document.getElementById("bnBobotMasaKerja").value)||0;
+    const sum=bl+bm;
+    const note=document.getElementById("bnBobotNote");
+    note.textContent = `Total bobot: ${sum}%`;
+    note.style.color = sum===100 ? "var(--moss-dark)" : "var(--danger)";
+    return sum===100;
+  }
+  document.getElementById("bnBobotLevel").addEventListener("input", updateBobotNote);
+  document.getElementById("bnBobotMasaKerja").addEventListener("input", updateBobotNote);
+  updateBobotNote();
+
+  document.getElementById("bnBagiOtomatis").addEventListener("click", ()=>{
+    if(!updateBobotNote()){ showToast("Total bobot harus tepat 100%"); return; }
+    const info=renderPool();
+    const unitKey=document.getElementById("bnUnit").value;
+    const daftar=KARYAWAN.filter(k=>k.status==="aktif" && k.unitKey===unitKey);
+    if(!daftar.length){ showToast("Belum ada karyawan aktif di unit ini"); return; }
+    const wLevel=(parseFloat(document.getElementById("bnBobotLevel").value)||0)/100;
+    const wMasa=(parseFloat(document.getElementById("bnBobotMasaKerja").value)||0)/100;
+
+    const levels=daftar.map(k=>Number(k.levelKompetensi)||0);
+    const masaBulan=daftar.map(k=>masaKerjaBulanCount(k.tanggalMulaiKerja));
+    const sumLevel=levels.reduce((s,v)=>s+v,0);
+    const sumMasa=masaBulan.reduce((s,v)=>s+v,0);
+
+    daftar.forEach((k,idx)=>{
+      const propLevel = sumLevel>0 ? levels[idx]/sumLevel : 1/daftar.length;
+      const propMasa = sumMasa>0 ? masaBulan[idx]/sumMasa : 1/daftar.length;
+      const score = wLevel*propLevel + wMasa*propMasa;
+      const bagian = Math.round(info.bonusPool * score);
+      const inp = document.querySelector(`[data-bonus-input="${k.id}"]`);
+      if(inp) inp.value = bagian?bagian.toLocaleString("id-ID"):"";
+    });
+    recalcBonusTotal();
+    showToast(`Dibagi otomatis (${wLevel*100}% Level, ${wMasa*100}% Masa Kerja) ke ${daftar.length} karyawan`);
+  });
   document.getElementById("bnBagiRata").addEventListener("click", ()=>{
     const info=renderPool();
     const inputs=document.querySelectorAll("[data-bonus-input]");
