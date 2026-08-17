@@ -214,7 +214,7 @@ const SPREADSHEET_ID = "1bAS8NIzcSSENH5o9MSucaINMURUcwXFCRln0w4_g23A";
 const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
 const SHEET_UNIT="Unit", SHEET_KAS_MASUK="Kas Masuk", SHEET_TARGET_OMZET="Target Omzet";
-const SHEET_KARYAWAN="Karyawan", SHEET_GAJI="Gaji", SHEET_BONUS="Bonus";
+const SHEET_KARYAWAN="Karyawan", SHEET_GAJI="Gaji", SHEET_BONUS="Bonus", SHEET_TARIF_JABATAN="Tarif Jabatan";
 const HDR_KARYAWAN=["Nama","Unit","Jabatan","Gaji Pokok","Status","No HP",
   "NIK","Tempat Lahir","Tanggal Lahir","Jenis Kelamin","Alamat","Akun Medsos",
   "Tanggal Mulai Kerja","Jenis Karyawan","Level Kompetensi",
@@ -222,6 +222,7 @@ const HDR_KARYAWAN=["Nama","Unit","Jabatan","Gaji Pokok","Status","No HP",
   "Pendidikan Terakhir","Tahun Lulus","Pengalaman Kerja","Masa Kerja Sebelumnya","Catatan"];
 const HDR_GAJI=["Tanggal Bayar","Karyawan","Bulan","Jumlah","Tunjangan Jabatan","Keterangan"];
 const HDR_BONUS=["Tanggal Bayar","Karyawan","Unit","Bulan","Jumlah"];
+const HDR_TARIF_JABATAN=["Urutan","Jabatan","Kelipatan","Nilai Basis"];
 const MONTH_NAMES=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
 function asText(v){ return "'"+v; }
@@ -356,6 +357,8 @@ function unitByLabelMap(unitsList){ const m={}; unitsList.forEach(u=>{ m[u.label
 let UNITS=[];               // [{key,label}] — dibaca dari Sheet "Unit" (dikelola aplikasi Keuangan)
 let PEMASUKAN_RAW=[];        // baris mentah "Kas Masuk" (dipakai hitung realisasi omzet utk bonus)
 let TARGET_OMZET={};         // { unitKey: { "YYYY-MM": target } }
+let TARIF_JABATAN=[];        // [{nama, kelipatan}] urutan tetap = urutan tanggung jawab (tinggi -> rendah)
+let NILAI_BASIS=0;           // Rp, dikalikan dengan kelipatan tiap jabatan
 let KARYAWAN=[];             // [{id,nama,unitKey,jabatan,gajiPokok,status,noHp}]
 let GAJI=[];                 // [{id,karyawanId,bulan,jumlah,tanggalBayar,keterangan}]
 let BONUS=[];                // [{id,karyawanId,unitKey,bulan,jumlah,tanggalBayar}]
@@ -506,11 +509,28 @@ async function saveKaryawan(){ return sheetsReplaceAll(SHEET_KARYAWAN, HDR_KARYA
 async function saveGaji(){ return sheetsReplaceAll(SHEET_GAJI, HDR_GAJI, rowsFromGaji()); }
 async function saveBonus(){ return sheetsReplaceAll(SHEET_BONUS, HDR_BONUS, rowsFromBonus()); }
 
+function rowsFromTarifJabatan(){
+  return TARIF_JABATAN.map((t,i)=>({ "Urutan":i+1, "Jabatan":t.nama, "Kelipatan":t.kelipatan, "Nilai Basis": i===0?NILAI_BASIS:"" }));
+}
+function tarifJabatanFromRows(rows){
+  const sorted=[...rows].sort((a,b)=>(Number(a["Urutan"])||0)-(Number(b["Urutan"])||0));
+  const list=sorted.map(r=>({ nama:String(r["Jabatan"]||"").trim(), kelipatan:Number(r["Kelipatan"])||0 })).filter(t=>t.nama);
+  const basisRow=rows.find(r=>r["Nilai Basis"]!==undefined && String(r["Nilai Basis"]).trim()!=="");
+  const basis=basisRow?Number(basisRow["Nilai Basis"])||0:0;
+  return { list, basis };
+}
+async function saveTarifJabatan(){ return sheetsReplaceAll(SHEET_TARIF_JABATAN, HDR_TARIF_JABATAN, rowsFromTarifJabatan()); }
+function tarifUntukJabatan(namaJabatan){
+  if(!namaJabatan) return 0;
+  const t=TARIF_JABATAN.find(x=>x.nama.trim().toLowerCase()===namaJabatan.trim().toLowerCase());
+  return t ? Math.round(NILAI_BASIS*t.kelipatan) : 0;
+}
+
 /* ================= NAV / ROUTER ================= */
 const NAV=[
   { group:"Utama", items:[ {id:"sampul",label:"Sampul"}, {id:"dashboard",label:"Dashboard"} ] },
   { group:"Karyawan", items:[ {id:"daftar",label:"Daftar Karyawan"}, {id:"dokumen",label:"Formulir & Surat"} ] },
-  { group:"Pembayaran", items:[ {id:"gaji",label:"Gaji Bulanan"}, {id:"bonus",label:"Bonus"} ] }
+  { group:"Pembayaran", items:[ {id:"gaji",label:"Gaji Bulanan"}, {id:"bonus",label:"Bonus"}, {id:"tarif",label:"Tarif Jabatan"} ] }
 ];
 const PAGE_META={
   "sampul":["Sampul","LORONGSATU21 — Karyawan"],
@@ -518,7 +538,8 @@ const PAGE_META={
   "daftar":["Daftar Karyawan","Kelola data karyawan per unit"],
   "dokumen":["Formulir & Surat","Formulir data karyawan baru dan surat pernyataan, siap diprint"],
   "gaji":["Gaji Bulanan","Catat pembayaran gaji tiap bulan"],
-  "bonus":["Bonus","Bonus karyawan berdasarkan pencapaian target omzet unit"]
+  "bonus":["Bonus","Bonus karyawan berdasarkan pencapaian target omzet unit"],
+  "tarif":["Tarif Jabatan","Urutan jabatan, kelipatan, dan nilai basis tunjangan"]
 };
 let currentPage="dashboard";
 function buildNav(){
@@ -548,7 +569,7 @@ function navigateTo(id){
   currentPage=id||"dashboard";
   setActiveNav(currentPage);
   const c=document.getElementById("pageContent");
-  const renderers={ "sampul":renderSampul,"dashboard":renderDashboard,"daftar":renderDaftar,"dokumen":renderDokumen,"gaji":renderGaji,"bonus":renderBonus };
+  const renderers={ "sampul":renderSampul,"dashboard":renderDashboard,"daftar":renderDaftar,"dokumen":renderDokumen,"gaji":renderGaji,"bonus":renderBonus,"tarif":renderTarifJabatan };
   try{ (renderers[currentPage]||renderDashboard)(c); }
   catch(err){ console.error("Render error",currentPage,err); c.innerHTML=`<div class="empty-state">Terjadi kendala membuka halaman ini.</div>`; }
 }
@@ -807,6 +828,112 @@ function renderDaftar(c){
 }
 
 /* ================= GAJI BULANAN ================= */
+/* ================= TARIF JABATAN ================= */
+const CONTOH_TARIF_JABATAN=[
+  { nama:"Kepala Operasional", kelipatan:5 },
+  { nama:"Koordinator Unit", kelipatan:3 },
+  { nama:"Admin Keuangan", kelipatan:2.5 },
+  { nama:"Kasir", kelipatan:1.5 },
+  { nama:"Staf Desain", kelipatan:1.5 },
+  { nama:"Staf Gudang/Stok", kelipatan:1 },
+];
+function renderTarifJabatan(c){
+  c.innerHTML=`
+    <div class="card card-pad" style="max-width:640px;margin-bottom:18px;">
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:14px;">
+        Urutan daftar di bawah mencerminkan tingkat tanggung jawab — <b>paling atas = paling tinggi</b>.
+        Nominal tunjangan tiap jabatan = <b>Nilai Basis × Kelipatan</b>. Kelipatan dan Nilai Basis bebas diubah kapan saja;
+        pertahankan saja urutannya (kelipatan jabatan atas sebaiknya tidak lebih kecil dari yang di bawahnya).
+        Nominal ini otomatis jadi usulan Tunjangan Jabatan di halaman Gaji Bulanan sesuai jabatan tiap karyawan (tetap bisa diedit manual per orang).
+      </div>
+      <div class="field-inline" style="max-width:220px;margin-bottom:14px;">
+        <label class="f-label">Nilai Basis (Rp)</label>
+        <div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" id="tfBasis" placeholder="0"></div>
+      </div>
+    </div>
+
+    <div class="tbl-wrap" style="margin-bottom:14px;"><table>
+      <thead><tr><th>Urutan</th><th>Jabatan</th><th>Kelipatan</th><th>Nominal</th><th></th></tr></thead>
+      <tbody id="tfBody"></tbody>
+    </table></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" id="tfTambahBaris">+ Tambah Jabatan</button>
+      <button class="btn btn-ghost btn-sm" id="tfContoh">Isi Contoh Bawaan</button>
+      <button class="btn btn-primary" id="tfSimpan">Simpan Tarif Jabatan</button>
+      <span id="tfStatus" style="font-size:12px;color:var(--muted);align-self:center;"></span>
+    </div>
+  `;
+  let localList = TARIF_JABATAN.length ? TARIF_JABATAN.map(t=>({...t})) : [];
+  document.getElementById("tfBasis").value = NILAI_BASIS ? NILAI_BASIS.toLocaleString("id-ID") : "";
+  document.getElementById("tfBasis").addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; renderList(); });
+
+  function currentBasis(){ return parseMoneyInput(document.getElementById("tfBasis").value); }
+
+  function renderList(){
+    const basis=currentBasis();
+    document.getElementById("tfBody").innerHTML = localList.length ? localList.map((t,i)=>`
+      <tr data-idx="${i}">
+        <td>
+          <button class="btn btn-ghost btn-sm" data-move="up" data-idx="${i}" ${i===0?"disabled":""} title="Naikkan">↑</button>
+          <button class="btn btn-ghost btn-sm" data-move="down" data-idx="${i}" ${i===localList.length-1?"disabled":""} title="Turunkan">↓</button>
+        </td>
+        <td style="text-align:left;"><input type="text" data-tf-nama="${i}" value="${escapeHtml(t.nama)}" style="width:100%;"></td>
+        <td><input type="number" step="0.1" min="0" data-tf-kelipatan="${i}" value="${t.kelipatan}" style="width:80px;text-align:right;"></td>
+        <td>${formatRupiah(Math.round(basis*t.kelipatan))}</td>
+        <td><button class="btn btn-danger btn-sm" data-hapus="${i}">Hapus</button></td>
+      </tr>`).join("") : `<tr><td colspan="5" class="empty-state">Belum ada jabatan. Klik "Isi Contoh Bawaan" atau "+ Tambah Jabatan".</td></tr>`;
+
+    document.querySelectorAll("[data-tf-nama]").forEach(inp=>{
+      inp.addEventListener("input", e=>{ localList[+e.target.getAttribute("data-tf-nama")].nama=e.target.value; });
+    });
+    document.querySelectorAll("[data-tf-kelipatan]").forEach(inp=>{
+      inp.addEventListener("input", e=>{
+        localList[+e.target.getAttribute("data-tf-kelipatan")].kelipatan=parseFloat(e.target.value)||0;
+        renderList();
+      });
+    });
+    document.querySelectorAll('[data-move="up"]').forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const i=+btn.getAttribute("data-idx");
+        [localList[i-1], localList[i]] = [localList[i], localList[i-1]];
+        renderList();
+      });
+    });
+    document.querySelectorAll('[data-move="down"]').forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const i=+btn.getAttribute("data-idx");
+        [localList[i+1], localList[i]] = [localList[i], localList[i+1]];
+        renderList();
+      });
+    });
+    document.querySelectorAll("[data-hapus]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        localList.splice(+btn.getAttribute("data-hapus"),1);
+        renderList();
+      });
+    });
+  }
+  document.getElementById("tfTambahBaris").addEventListener("click", ()=>{
+    localList.push({ nama:"", kelipatan:1 });
+    renderList();
+  });
+  document.getElementById("tfContoh").addEventListener("click", async ()=>{
+    if(localList.length && !(await customConfirm("Timpa daftar yang ada dengan contoh bawaan (6 jabatan)?","Ya, Timpa"))) return;
+    localList = CONTOH_TARIF_JABATAN.map(t=>({...t}));
+    if(!currentBasis()){ document.getElementById("tfBasis").value=(100000).toLocaleString("id-ID"); }
+    renderList();
+  });
+  document.getElementById("tfSimpan").addEventListener("click", async ()=>{
+    const clean=localList.filter(t=>t.nama.trim());
+    TARIF_JABATAN=clean;
+    NILAI_BASIS=currentBasis();
+    const ok=await saveTarifJabatan();
+    document.getElementById("tfStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Gagal tersimpan — coba lagi";
+    showToast(ok?"Tarif jabatan tersimpan":"Gagal menyimpan");
+  });
+  renderList();
+}
+
 function renderGaji(c){
   const now=new Date();
   const monthOptions=MONTH_NAMES.map((mn,i)=>`<option value="${i+1}">${mn}</option>`).join("");
@@ -842,7 +969,7 @@ function renderGaji(c){
     document.getElementById("gjBody").innerHTML = aktif.length ? aktif.map(k=>{
       const existing=GAJI.find(g=>g.karyawanId===k.id && g.bulan===currentYm);
       const jumlah = existing ? existing.jumlah : k.gajiPokok;
-      const tunjangan = existing ? (existing.tunjanganJabatan||0) : 0;
+      const tunjangan = existing ? (existing.tunjanganJabatan||0) : tarifUntukJabatan(k.jabatan);
       total+=jumlah;
       return `<tr data-karyawan="${k.id}">
         <td style="text-align:left;">${escapeHtml(k.nama)}</td>
@@ -1086,9 +1213,9 @@ function renderBonus(c){
 
 /* ================= INIT ================= */
 async function loadAppData(){
-  const [unitRows, kasRows, targetRows, karyawanRows, gajiRows, bonusRows] = await Promise.all([
+  const [unitRows, kasRows, targetRows, karyawanRows, gajiRows, bonusRows, tarifRows] = await Promise.all([
     sheetsGetAll(SHEET_UNIT), sheetsGetAll(SHEET_KAS_MASUK), sheetsGetAll(SHEET_TARGET_OMZET),
-    sheetsGetAll(SHEET_KARYAWAN), sheetsGetAll(SHEET_GAJI), sheetsGetAll(SHEET_BONUS)
+    sheetsGetAll(SHEET_KARYAWAN), sheetsGetAll(SHEET_GAJI), sheetsGetAll(SHEET_BONUS), sheetsGetAll(SHEET_TARIF_JABATAN)
   ]);
   UNITS = unitRows && unitRows.length ? unitsFromRows(unitRows) : [];
   PEMASUKAN_RAW = kasRows||[];
@@ -1096,6 +1223,9 @@ async function loadAppData(){
   KARYAWAN = karyawanFromRows(karyawanRows||[], UNITS);
   GAJI = gajiFromRows(gajiRows||[], KARYAWAN);
   BONUS = bonusFromRows(bonusRows||[], KARYAWAN, UNITS);
+  const tarifParsed = tarifJabatanFromRows(tarifRows||[]);
+  TARIF_JABATAN = tarifParsed.list;
+  NILAI_BASIS = tarifParsed.basis;
 
   buildNav();
   document.getElementById("signedInAs").textContent = signedInEmail || "";
