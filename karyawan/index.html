@@ -239,11 +239,11 @@ const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
 const SHEET_UNIT="Unit", SHEET_KAS_MASUK="Kas Masuk", SHEET_TARGET_OMZET="Target Omzet";
 const SHEET_KARYAWAN="Karyawan", SHEET_GAJI="Gaji", SHEET_BONUS="Bonus", SHEET_TARIF_JABATAN="Tarif Jabatan";
-const HDR_KARYAWAN=["Nama","Unit","Jabatan","Gaji Pokok","Status","No HP",
+const HDR_KARYAWAN=["ID Karyawan","Nama","Unit","Jabatan","Gaji Pokok","Status","No HP",
   "NIK","Tempat Lahir","Tanggal Lahir","Jenis Kelamin","Alamat","Akun Medsos",
   "Tanggal Mulai Kerja","Jenis Karyawan","Level Kompetensi",
   "Nama Orang Tua","Jumlah Saudara","Kontak Darurat Nama","Kontak Darurat HP","Kontak Darurat Hubungan",
-  "Pendidikan Terakhir","Tahun Lulus","Pengalaman Kerja","Masa Kerja Sebelumnya","Catatan"];
+  "Pendidikan Terakhir","Tahun Lulus","Pengalaman Kerja","Masa Kerja Sebelumnya","Catatan","Next ID Counter"];
 const HDR_GAJI=["Tanggal Bayar","Karyawan","Bulan","Jumlah","Tunjangan Jabatan","Keterangan"];
 const HDR_BONUS=["Tanggal Bayar","Karyawan","Unit","Bulan","Jumlah"];
 const HDR_TARIF_JABATAN=["Urutan","Jabatan","Kelipatan","Nilai Basis"];
@@ -382,6 +382,7 @@ let UNITS=[];               // [{key,label}] — dibaca dari Sheet "Unit" (dikel
 let PEMASUKAN_RAW=[];        // baris mentah "Kas Masuk" (dipakai hitung realisasi omzet utk bonus)
 let TARGET_OMZET={};         // { unitKey: { "YYYY-MM": target } }
 let TARIF_JABATAN=[];        // [{nama, kelipatan}] urutan tetap = urutan tanggung jawab (tinggi -> rendah)
+let NEXT_KARYAWAN_ID=1;      // nomor ID karyawan berikutnya, permanen naik terus meski ada yg dihapus
 let NILAI_BASIS=0;           // Rp, dikalikan dengan kelipatan tiap jabatan
 let KARYAWAN=[];             // [{id,nama,unitKey,jabatan,gajiPokok,status,noHp}]
 let GAJI=[];                 // [{id,karyawanId,bulan,jumlah,tanggalBayar,keterangan}]
@@ -465,12 +466,13 @@ const KARYAWAN_DETAIL_FIELDS=["nik","tempatLahir","tanggalLahir","jenisKelamin",
   "kontakDaruratNama","kontakDaruratHp","kontakDaruratHubungan","pendidikanTerakhir","tahunLulus","pengalamanKerja","masaKerjaSebelumnya","catatan"];
 
 function rowsFromKaryawan(){
-  return KARYAWAN.map(k=>({
-    "Nama":k.nama, "Unit":unitLabel(k.unitKey), "Jabatan":k.jabatan||"", "Gaji Pokok":k.gajiPokok||0, "Status":k.status||"aktif", "No HP":k.noHp||"",
+  return KARYAWAN.map((k,i)=>({
+    "ID Karyawan":k.idKaryawan||"", "Nama":k.nama, "Unit":unitLabel(k.unitKey), "Jabatan":k.jabatan||"", "Gaji Pokok":k.gajiPokok||0, "Status":k.status||"aktif", "No HP":k.noHp||"",
     "NIK":k.nik||"", "Tempat Lahir":k.tempatLahir||"", "Tanggal Lahir":k.tanggalLahir?asText(k.tanggalLahir):"", "Jenis Kelamin":k.jenisKelamin||"", "Alamat":k.alamat||"", "Akun Medsos":k.medsos||"",
     "Tanggal Mulai Kerja":k.tanggalMulaiKerja?asText(k.tanggalMulaiKerja):"", "Jenis Karyawan":k.jenisKaryawan||"", "Level Kompetensi":k.levelKompetensi||"",
     "Nama Orang Tua":k.namaOrangTua||"", "Jumlah Saudara":k.jumlahSaudara||"", "Kontak Darurat Nama":k.kontakDaruratNama||"", "Kontak Darurat HP":k.kontakDaruratHp||"", "Kontak Darurat Hubungan":k.kontakDaruratHubungan||"",
-    "Pendidikan Terakhir":k.pendidikanTerakhir||"", "Tahun Lulus":k.tahunLulus||"", "Pengalaman Kerja":k.pengalamanKerja||"", "Masa Kerja Sebelumnya":k.masaKerjaSebelumnya||"", "Catatan":k.catatan||""
+    "Pendidikan Terakhir":k.pendidikanTerakhir||"", "Tahun Lulus":k.tahunLulus||"", "Pengalaman Kerja":k.pengalamanKerja||"", "Masa Kerja Sebelumnya":k.masaKerjaSebelumnya||"", "Catatan":k.catatan||"",
+    "Next ID Counter": i===0?NEXT_KARYAWAN_ID:""
   }));
 }
 function karyawanFromRows(rows, unitsList){
@@ -479,7 +481,7 @@ function karyawanFromRows(rows, unitsList){
     const nama=String(r["Nama"]||"").trim(); if(!nama) return null;
     const unitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()]||"";
     return {
-      id:uid(), nama, unitKey, jabatan:r["Jabatan"]||"", gajiPokok:Number(r["Gaji Pokok"])||0, status:(String(r["Status"]||"aktif").toLowerCase()==="nonaktif"?"nonaktif":"aktif"), noHp:r["No HP"]||"",
+      id:uid(), idKaryawan:String(r["ID Karyawan"]||"").trim(), nama, unitKey, jabatan:r["Jabatan"]||"", gajiPokok:Number(r["Gaji Pokok"])||0, status:(String(r["Status"]||"aktif").toLowerCase()==="nonaktif"?"nonaktif":"aktif"), noHp:r["No HP"]||"",
       nik:r["NIK"]||"", tempatLahir:r["Tempat Lahir"]||"", tanggalLahir:normalizeDateCell(r["Tanggal Lahir"])||"", jenisKelamin:r["Jenis Kelamin"]||"", alamat:r["Alamat"]||"", medsos:r["Akun Medsos"]||"",
       tanggalMulaiKerja:normalizeDateCell(r["Tanggal Mulai Kerja"])||"", jenisKaryawan:r["Jenis Karyawan"]||"", levelKompetensi:r["Level Kompetensi"]||"",
       namaOrangTua:r["Nama Orang Tua"]||"", jumlahSaudara:r["Jumlah Saudara"]||"", kontakDaruratNama:r["Kontak Darurat Nama"]||"", kontakDaruratHp:r["Kontak Darurat HP"]||"", kontakDaruratHubungan:r["Kontak Darurat Hubungan"]||"",
@@ -487,6 +489,11 @@ function karyawanFromRows(rows, unitsList){
     };
   }).filter(Boolean);
 }
+function nextIdCounterFromRows(rows){
+  const row=rows.find(r=>r["Next ID Counter"]!==undefined && String(r["Next ID Counter"]).trim()!=="");
+  return row ? (Number(row["Next ID Counter"])||1) : 1;
+}
+function formatIdKaryawan(n){ return String(n).padStart(3,"0"); }
 
 function rowsFromGaji(){
   return GAJI.map(g=>({ "Tanggal Bayar":asText(g.tanggalBayar), "Karyawan":karyawanLabel(g.karyawanId), "Bulan":asText(g.bulan), "Jumlah":g.jumlah||0, "Tunjangan Jabatan":g.tunjanganJabatan||0, "Keterangan":g.keterangan||"" }));
@@ -699,12 +706,13 @@ function openDetailModal(karyawanId, onSaved){
 
   box.innerHTML=`
     <div class="modal-header-elegant">
-      <div class="eyebrow-x">Lorongsatu21</div>
+      <div class="eyebrow-x">Lorongsatu21${!isNew&&k.idKaryawan?' · ID '+escapeHtml(k.idKaryawan):''}</div>
       <h3>${isNew?"Formulir Karyawan Baru":escapeHtml(k.nama)}</h3>
       <div class="gold-rule"></div>
     </div>
 
     <div class="section-title-elegant">Data Dasar</div>
+    ${!isNew&&k.idKaryawan?`<div style="font-size:11.5px;color:var(--muted);margin:-6px 0 12px;">ID Karyawan: <b style="color:var(--moss-dark);">${escapeHtml(k.idKaryawan)}</b> (nomor tetap, tidak berubah)</div>`:''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
       ${field("Nama Lengkap","nama")}
       ${unitSelectField()}
@@ -774,7 +782,7 @@ function openDetailModal(karyawanId, onSaved){
       const key=el.getAttribute("data-detail-field");
       k[key] = el.getAttribute("data-money")==="1" ? parseMoneyInput(el.value) : el.value.trim();
     });
-    if(isNew){ k.status="aktif"; KARYAWAN.push(k); }
+    if(isNew){ k.status="aktif"; k.idKaryawan=formatIdKaryawan(NEXT_KARYAWAN_ID); NEXT_KARYAWAN_ID++; KARYAWAN.push(k); }
     const ok=await saveKaryawan();
     document.body.removeChild(overlay);
     showToast(ok ? (isNew?"Karyawan ditambahkan":"Detail tersimpan") : "Gagal tersimpan — coba lagi");
@@ -803,21 +811,36 @@ function renderDokumen(c){
 
 function renderDaftar(c){
   c.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
       <div class="section-title" style="margin:0;">Daftar Karyawan</div>
       <button class="btn btn-primary" id="dkTambahBaru">+ Karyawan Baru</button>
     </div>
+    <div class="card card-pad" style="margin-bottom:16px;max-width:420px;">
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">ID Karyawan berikutnya yang akan diberikan otomatis ke karyawan baru. Boleh disesuaikan manual (misalnya kalau riwayat karyawan lama sebelum ini sudah sampai nomor tertentu, walau belum tercatat di aplikasi).</div>
+      <div style="display:flex;gap:10px;align-items:end;">
+        <div class="field-inline" style="max-width:120px;"><label class="f-label">ID Berikutnya</label><input type="number" min="1" id="dkNextId" value="${NEXT_KARYAWAN_ID}"></div>
+        <button class="btn btn-ghost btn-sm" id="dkNextIdSimpan">Simpan</button>
+      </div>
+    </div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Nama</th><th>Unit</th><th>Jabatan</th><th>Gaji Pokok</th><th>Status</th><th>No HP</th><th></th></tr></thead>
+      <thead><tr><th>ID</th><th>Nama</th><th>Unit</th><th>Jabatan</th><th>Gaji Pokok</th><th>Status</th><th>No HP</th><th></th></tr></thead>
       <tbody id="dkBody"></tbody>
     </table></div>
   `;
   document.getElementById("dkTambahBaru").addEventListener("click", ()=>openDetailModal(null, renderList));
+  document.getElementById("dkNextIdSimpan").addEventListener("click", async ()=>{
+    const v=parseInt(document.getElementById("dkNextId").value,10);
+    if(!v||v<1){ showToast("Isi angka yang benar"); return; }
+    NEXT_KARYAWAN_ID=v;
+    const ok=await saveKaryawan();
+    showToast(ok?"ID berikutnya tersimpan":"Gagal tersimpan — coba lagi");
+  });
 
   function renderList(){
-    const rows=[...KARYAWAN].sort((a,b)=>a.nama.localeCompare(b.nama));
+    const rows=[...KARYAWAN].sort((a,b)=>(a.idKaryawan||"").localeCompare(b.idKaryawan||""));
     document.getElementById("dkBody").innerHTML = rows.length ? rows.map(k=>`
       <tr data-row="${k.id}">
+        <td style="font-weight:700;color:var(--moss-dark);">${escapeHtml(k.idKaryawan||"-")}</td>
         <td style="text-align:left;"><input type="text" data-edit="nama" data-id="${k.id}" value="${escapeHtml(k.nama)}" style="width:130px;"></td>
         <td><select data-edit="unitKey" data-id="${k.id}">${UNITS.map(u=>`<option value="${u.key}" ${u.key===k.unitKey?"selected":""}>${escapeHtml(u.label)}</option>`).join("")}</select></td>
         <td style="text-align:left;">
@@ -830,7 +853,7 @@ function renderDaftar(c){
         <td><span class="pill ${k.status}">${k.status==="aktif"?"Aktif":"Nonaktif"}</span></td>
         <td><input type="tel" data-edit="noHp" data-id="${k.id}" value="${escapeHtml(k.noHp||"")}" placeholder="08xx" style="width:110px;"></td>
         <td><button class="btn btn-ghost btn-sm" data-detail="${k.id}">Detail</button> <button class="btn btn-ghost btn-sm" data-toggle="${k.id}">${k.status==="aktif"?"Nonaktifkan":"Aktifkan"}</button> <button class="btn btn-danger btn-sm" data-del="${k.id}">Hapus</button></td>
-      </tr>`).join("") : `<tr><td colspan="7" class="empty-state">Belum ada karyawan.</td></tr>`;
+      </tr>`).join("") : `<tr><td colspan="8" class="empty-state">Belum ada karyawan.</td></tr>`;
 
     document.querySelectorAll('[data-edit="gajiPokok"]').forEach(inp=>{
       inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
@@ -1018,7 +1041,7 @@ function renderStrukGaji(c){
       return `
         <div class="struk-card">
           <div class="struk-head">
-            <span class="struk-no">${idx+1}</span>
+            <span class="struk-no">${escapeHtml(k.idKaryawan||"-")}</span>
             <span class="struk-nama">${escapeHtml(k.nama.toUpperCase())}</span>
             <span class="struk-bulan">${bulanLabel}</span>
           </div>
@@ -1328,6 +1351,7 @@ async function loadAppData(){
   PEMASUKAN_RAW = kasRows||[];
   TARGET_OMZET = targetOmzetFromRows(targetRows||[], UNITS);
   KARYAWAN = karyawanFromRows(karyawanRows||[], UNITS);
+  NEXT_KARYAWAN_ID = nextIdCounterFromRows(karyawanRows||[]);
   GAJI = gajiFromRows(gajiRows||[], KARYAWAN);
   BONUS = bonusFromRows(bonusRows||[], KARYAWAN, UNITS);
   const tarifParsed = tarifJabatanFromRows(tarifRows||[]);
