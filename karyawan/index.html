@@ -704,16 +704,19 @@ function openDetailModal(karyawanId, onSaved){
     return `<div class="field-inline"><label class="f-label">${label}</label><div class="input-money"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-detail-field="${key}" data-money="1" value="${k[key]?k[key].toLocaleString('id-ID'):''}"></div></div>`;
   }
 
+  const idSuggestion = isNew ? formatIdKaryawan(NEXT_KARYAWAN_ID) : (k.idKaryawan||"");
   box.innerHTML=`
     <div class="modal-header-elegant">
-      <div class="eyebrow-x">Lorongsatu21${!isNew&&k.idKaryawan?' · ID '+escapeHtml(k.idKaryawan):''}</div>
+      <div class="eyebrow-x">Lorongsatu21</div>
       <h3>${isNew?"Formulir Karyawan Baru":escapeHtml(k.nama)}</h3>
       <div class="gold-rule"></div>
     </div>
 
     <div class="section-title-elegant">Data Dasar</div>
-    ${!isNew&&k.idKaryawan?`<div style="font-size:11.5px;color:var(--muted);margin:-6px 0 12px;">ID Karyawan: <b style="color:var(--moss-dark);">${escapeHtml(k.idKaryawan)}</b> (nomor tetap, tidak berubah)</div>`:''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+      <div class="field-inline"><label class="f-label">ID Karyawan</label><input type="text" id="dtIdKaryawan" value="${escapeHtml(idSuggestion)}" placeholder="mis. 017" maxlength="3" style="max-width:100px;">
+        <div style="font-size:10.5px;color:var(--muted);margin-top:2px;">${isNew?'Usulan otomatis — boleh diganti kalau ini karyawan lama dengan nomor tertentu':'Boleh diedit kalau perlu koreksi'}</div>
+      </div>
       ${field("Nama Lengkap","nama")}
       ${unitSelectField()}
       ${jabatanSelectField()}
@@ -778,11 +781,15 @@ function openDetailModal(karyawanId, onSaved){
   box.querySelector('[data-act="save"]').addEventListener("click", async ()=>{
     const namaEl=box.querySelector('[data-detail-field="nama"]');
     if(isNew && !namaEl.value.trim()){ showToast("Isi nama karyawan"); return; }
+    const idInput = document.getElementById("dtIdKaryawan").value.trim();
     box.querySelectorAll("[data-detail-field]").forEach(el=>{
       const key=el.getAttribute("data-detail-field");
       k[key] = el.getAttribute("data-money")==="1" ? parseMoneyInput(el.value) : el.value.trim();
     });
-    if(isNew){ k.status="aktif"; k.idKaryawan=formatIdKaryawan(NEXT_KARYAWAN_ID); NEXT_KARYAWAN_ID++; KARYAWAN.push(k); }
+    k.idKaryawan = idInput ? formatIdKaryawan(parseInt(idInput,10)||idInput) : k.idKaryawan;
+    const idNum = parseInt(idInput,10);
+    if(idNum && idNum >= NEXT_KARYAWAN_ID) NEXT_KARYAWAN_ID = idNum + 1; // majukan counter otomatis kalau nomor yang dipakai >= counter sekarang
+    if(isNew){ k.status="aktif"; KARYAWAN.push(k); }
     const ok=await saveKaryawan();
     document.body.removeChild(overlay);
     showToast(ok ? (isNew?"Karyawan ditambahkan":"Detail tersimpan") : "Gagal tersimpan — coba lagi");
