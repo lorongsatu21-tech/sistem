@@ -1007,16 +1007,12 @@ function renderTarifJabatan(c){
     </div>
 
     <div class="card card-pad" style="max-width:640px;">
-      <div class="section-title" style="font-size:13px;">Simulator Persentase Kelipatan</div>
+      <div class="section-title" style="font-size:13px;">Simulator Kelipatan (Maksimal 10 = 100%)</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">
-        Atur porsi tiap jabatan dalam <b>persentase</b> — kalau satu jabatan dinaikkan, jabatan lain otomatis turun supaya total tetap 100%.
+        Atur langsung angka <b>Kelipatan</b> tiap jabatan — total gabungan maksimal <b>10</b> (setara 100%).
+        Kalau satu dinaikkan (mis. 3 → 4), yang lain otomatis turun supaya total tetap di angka 10.
         <b>Kepala Operasional dikecualikan</b> (berdiri sendiri, kelipatannya diatur manual di tabel atas, tidak ikut simulasi ini).
-        Kalau porsinya sudah pas, tekan "Terapkan" untuk mengubahnya jadi angka Kelipatan di tabel atas.
-      </div>
-      <div class="field-inline" style="max-width:220px;margin-bottom:14px;">
-        <label class="f-label">Total Skala Kelipatan Kelompok Ini</label>
-        <input type="number" step="0.1" min="0.1" id="tfSimTotalSkala">
-        <div style="font-size:10.5px;color:var(--muted);margin-top:2px;">Jumlah kelipatan seluruh jabatan (selain Kepala Operasional) kalau porsinya 100%</div>
+        Kalau angkanya sudah pas, tekan "Terapkan" untuk memindahkannya ke tabel Kelipatan di atas.
       </div>
       <div id="tfSimList"></div>
       <div style="font-size:12.5px;font-weight:600;margin:10px 0;" id="tfSimTotal"></div>
@@ -1095,7 +1091,8 @@ function renderTarifJabatan(c){
     showToast(ok?"Tarif jabatan tersimpan":"Gagal menyimpan");
   });
 
-  /* ---- Simulator Persentase (Kepala Operasional dikecualikan) ---- */
+  /* ---- Simulator Kelipatan (maksimal 10 = 100%), Kepala Operasional dikecualikan ---- */
+  const SIM_MAX_KELIPATAN = 10;
   let simState=[];
   function buildGroup(){
     const independentIdx = localList.findIndex(t=>normalizeJabatanName(t.nama)==="kepala operasional");
@@ -1104,16 +1101,15 @@ function renderTarifJabatan(c){
   function initSimState(){
     const group=buildGroup();
     const sumK=group.reduce((s,t)=>s+(Number(t.kelipatan)||0),0);
-    simState = group.map(t=>({ item:t, pct: sumK>0 ? (t.kelipatan/sumK*100) : (group.length?100/group.length:0) }));
-    document.getElementById("tfSimTotalSkala").value = sumK>0 ? Number(sumK.toFixed(2)) : (group.length||1);
+    simState = group.map(t=>({ item:t, kelipatan: sumK>0 ? (t.kelipatan/sumK*SIM_MAX_KELIPATAN) : (group.length?SIM_MAX_KELIPATAN/group.length:0) }));
   }
   function renderSimulator(){
     document.getElementById("tfSimList").innerHTML = simState.length ? simState.map((s,i)=>{
-      const totalSkala=parseFloat(document.getElementById("tfSimTotalSkala").value)||0;
+      const pct=(s.kelipatan/SIM_MAX_KELIPATAN*100);
       return `<div class="pct-sim-row">
         <div style="text-align:left;font-size:13px;">${escapeHtml(s.item.nama||"(tanpa nama)")}</div>
-        <div><input type="number" step="0.1" min="0" max="100" data-sim-pct="${i}" value="${s.pct.toFixed(1)}" style="width:75px;text-align:right;"></div>
-        <div style="font-size:11.5px;color:var(--muted);text-align:right;">→ kelipatan ${(s.pct/100*totalSkala).toFixed(2)}</div>
+        <div><input type="number" step="0.1" min="0" max="${SIM_MAX_KELIPATAN}" data-sim-pct="${i}" value="${s.kelipatan.toFixed(2)}" style="width:75px;text-align:right;"></div>
+        <div style="font-size:11.5px;color:var(--muted);text-align:right;">≈ ${pct.toFixed(1)}%</div>
       </div>`;
     }).join("") : `<div class="empty-state">Belum ada jabatan selain Kepala Operasional untuk disimulasikan.</div>`;
     document.querySelectorAll("[data-sim-pct]").forEach(inp=>{
@@ -1121,28 +1117,26 @@ function renderTarifJabatan(c){
         redistribute(+e.target.getAttribute("data-sim-pct"), parseFloat(e.target.value)||0);
       });
     });
-    const total=simState.reduce((s,o)=>s+o.pct,0);
-    document.getElementById("tfSimTotal").textContent = `Total porsi: ${total.toFixed(1)}%`;
+    const total=simState.reduce((s,o)=>s+o.kelipatan,0);
+    document.getElementById("tfSimTotal").textContent = `Total kelipatan: ${total.toFixed(2)} / ${SIM_MAX_KELIPATAN} (${(total/SIM_MAX_KELIPATAN*100).toFixed(1)}%)`;
   }
   function redistribute(changedIdx, newVal){
-    newVal=Math.max(0,Math.min(100,newVal));
-    const oldVal=simState[changedIdx].pct;
+    newVal=Math.max(0,Math.min(SIM_MAX_KELIPATAN,newVal));
+    const oldVal=simState[changedIdx].kelipatan;
     const delta=newVal-oldVal;
-    simState[changedIdx].pct=newVal;
+    simState[changedIdx].kelipatan=newVal;
     const others=simState.filter((_,i)=>i!==changedIdx);
     if(others.length){
-      const sumOthers=others.reduce((s,o)=>s+o.pct,0);
-      if(sumOthers>0){ others.forEach(o=>{ o.pct=Math.max(0, o.pct-delta*(o.pct/sumOthers)); }); }
-      else{ others.forEach(o=>{ o.pct=Math.max(0, -delta/others.length); }); }
+      const sumOthers=others.reduce((s,o)=>s+o.kelipatan,0);
+      if(sumOthers>0){ others.forEach(o=>{ o.kelipatan=Math.max(0, o.kelipatan-delta*(o.kelipatan/sumOthers)); }); }
+      else{ others.forEach(o=>{ o.kelipatan=Math.max(0, -delta/others.length); }); }
     }
-    const total=simState.reduce((s,o)=>s+o.pct,0);
-    if(total>0 && Math.abs(total-100)>0.001){ const f=100/total; simState.forEach(o=>{ o.pct*=f; }); }
+    const total=simState.reduce((s,o)=>s+o.kelipatan,0);
+    if(total>0 && Math.abs(total-SIM_MAX_KELIPATAN)>0.001){ const f=SIM_MAX_KELIPATAN/total; simState.forEach(o=>{ o.kelipatan*=f; }); }
     renderSimulator();
   }
-  document.getElementById("tfSimTotalSkala").addEventListener("change", renderSimulator);
   document.getElementById("tfSimTerapkan").addEventListener("click", ()=>{
-    const totalSkala=parseFloat(document.getElementById("tfSimTotalSkala").value)||0;
-    simState.forEach(s=>{ s.item.kelipatan=Math.round((s.pct/100*totalSkala)*100)/100; });
+    simState.forEach(s=>{ s.item.kelipatan=Math.round(s.kelipatan*100)/100; });
     renderList();
     showToast("Kelipatan diterapkan dari simulator ke tabel di atas — jangan lupa tekan Simpan Tarif Jabatan");
   });
