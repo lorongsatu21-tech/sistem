@@ -100,6 +100,8 @@ a{color:inherit;}
 .struk-card .struk-row .lbl{color:var(--ink);}
 .struk-card .struk-row .val{font-weight:600;}
 .struk-card .struk-jumlah{display:flex;justify-content:space-between;padding:9px 12px;background:var(--danger);color:#fff;font-weight:700;font-size:13.5px;}
+tr.bonus-row-hl td{font-weight:600;}
+.pct-sim-row{display:grid;grid-template-columns:1fr 90px 110px;gap:10px;align-items:center;padding:6px 0;}
 
 @media print{
   .sidebar, .topheader, .hamburger, .no-print{display:none !important;}
@@ -395,6 +397,11 @@ function formatRupiah(n){ n=Number(n)||0; return "Rp "+n.toLocaleString("id-ID")
 function parseMoneyInput(str){ if(!str) return 0; const c=String(str).replace(/[^\d]/g,""); return c?parseInt(c,10):0; }
 function escapeHtml(str){ return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function unitLabel(key){ const u=UNITS.find(x=>x.key===key); return u?u.label:(key||"-"); }
+const UNIT_COLOR_PALETTE = ["#3d5c46","#4f7cac","#a9843a","#7a6ba0","#b5654a","#2a6f6f"];
+function unitColor(unitKey){
+  const idx = UNITS.findIndex(u=>u.key===unitKey);
+  return UNIT_COLOR_PALETTE[(idx<0?0:idx) % UNIT_COLOR_PALETTE.length];
+}
 function karyawanLabel(id){ const k=KARYAWAN.find(x=>x.id===id); return k?k.nama:id; }
 function masaKerjaBulanCount(tanggalMulai){
   if(!tanggalMulai) return 0;
@@ -937,11 +944,28 @@ function renderTarifJabatan(c){
       <thead><tr><th>Urutan</th><th>Jabatan</th><th>Kelipatan</th><th>Nominal</th><th></th></tr></thead>
       <tbody id="tfBody"></tbody>
     </table></div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;">
       <button class="btn btn-ghost btn-sm" id="tfTambahBaris">+ Tambah Jabatan</button>
       <button class="btn btn-ghost btn-sm" id="tfContoh">Isi Contoh Bawaan</button>
       <button class="btn btn-primary" id="tfSimpan">Simpan Tarif Jabatan</button>
       <span id="tfStatus" style="font-size:12px;color:var(--muted);align-self:center;"></span>
+    </div>
+
+    <div class="card card-pad" style="max-width:640px;">
+      <div class="section-title" style="font-size:13px;">Simulator Persentase Kelipatan</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">
+        Atur porsi tiap jabatan dalam <b>persentase</b> — kalau satu jabatan dinaikkan, jabatan lain otomatis turun supaya total tetap 100%.
+        <b>Kepala Operasional dikecualikan</b> (berdiri sendiri, kelipatannya diatur manual di tabel atas, tidak ikut simulasi ini).
+        Kalau porsinya sudah pas, tekan "Terapkan" untuk mengubahnya jadi angka Kelipatan di tabel atas.
+      </div>
+      <div class="field-inline" style="max-width:220px;margin-bottom:14px;">
+        <label class="f-label">Total Skala Kelipatan Kelompok Ini</label>
+        <input type="number" step="0.1" min="0.1" id="tfSimTotalSkala">
+        <div style="font-size:10.5px;color:var(--muted);margin-top:2px;">Jumlah kelipatan seluruh jabatan (selain Kepala Operasional) kalau porsinya 100%</div>
+      </div>
+      <div id="tfSimList"></div>
+      <div style="font-size:12.5px;font-weight:600;margin:10px 0;" id="tfSimTotal"></div>
+      <button class="btn btn-primary btn-sm" id="tfSimTerapkan">Terapkan ke Kelipatan</button>
     </div>
   `;
   let localList = TARIF_JABATAN.length ? TARIF_JABATAN.map(t=>({...t})) : [];
@@ -991,18 +1015,21 @@ function renderTarifJabatan(c){
       btn.addEventListener("click", ()=>{
         localList.splice(+btn.getAttribute("data-hapus"),1);
         renderList();
+        initSimState(); renderSimulator();
       });
     });
   }
   document.getElementById("tfTambahBaris").addEventListener("click", ()=>{
     localList.push({ nama:"", kelipatan:1 });
     renderList();
+    initSimState(); renderSimulator();
   });
   document.getElementById("tfContoh").addEventListener("click", async ()=>{
     if(localList.length && !(await customConfirm("Timpa daftar yang ada dengan contoh bawaan (6 jabatan)?","Ya, Timpa"))) return;
     localList = CONTOH_TARIF_JABATAN.map(t=>({...t}));
     if(!currentBasis()){ document.getElementById("tfBasis").value=(100).toLocaleString("id-ID"); }
     renderList();
+    initSimState(); renderSimulator();
   });
   document.getElementById("tfSimpan").addEventListener("click", async ()=>{
     const clean=localList.filter(t=>t.nama.trim());
@@ -1012,6 +1039,61 @@ function renderTarifJabatan(c){
     document.getElementById("tfStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Gagal tersimpan — coba lagi";
     showToast(ok?"Tarif jabatan tersimpan":"Gagal menyimpan");
   });
+
+  /* ---- Simulator Persentase (Kepala Operasional dikecualikan) ---- */
+  let simState=[];
+  function buildGroup(){
+    const independentIdx = localList.findIndex(t=>normalizeJabatanName(t.nama)==="kepala operasional");
+    return localList.filter((t,i)=>i!==independentIdx);
+  }
+  function initSimState(){
+    const group=buildGroup();
+    const sumK=group.reduce((s,t)=>s+(Number(t.kelipatan)||0),0);
+    simState = group.map(t=>({ item:t, pct: sumK>0 ? (t.kelipatan/sumK*100) : (group.length?100/group.length:0) }));
+    document.getElementById("tfSimTotalSkala").value = sumK>0 ? Number(sumK.toFixed(2)) : (group.length||1);
+  }
+  function renderSimulator(){
+    document.getElementById("tfSimList").innerHTML = simState.length ? simState.map((s,i)=>{
+      const totalSkala=parseFloat(document.getElementById("tfSimTotalSkala").value)||0;
+      return `<div class="pct-sim-row">
+        <div style="text-align:left;font-size:13px;">${escapeHtml(s.item.nama||"(tanpa nama)")}</div>
+        <div><input type="number" step="0.1" min="0" max="100" data-sim-pct="${i}" value="${s.pct.toFixed(1)}" style="width:75px;text-align:right;"></div>
+        <div style="font-size:11.5px;color:var(--muted);text-align:right;">→ kelipatan ${(s.pct/100*totalSkala).toFixed(2)}</div>
+      </div>`;
+    }).join("") : `<div class="empty-state">Belum ada jabatan selain Kepala Operasional untuk disimulasikan.</div>`;
+    document.querySelectorAll("[data-sim-pct]").forEach(inp=>{
+      inp.addEventListener("change", e=>{
+        redistribute(+e.target.getAttribute("data-sim-pct"), parseFloat(e.target.value)||0);
+      });
+    });
+    const total=simState.reduce((s,o)=>s+o.pct,0);
+    document.getElementById("tfSimTotal").textContent = `Total porsi: ${total.toFixed(1)}%`;
+  }
+  function redistribute(changedIdx, newVal){
+    newVal=Math.max(0,Math.min(100,newVal));
+    const oldVal=simState[changedIdx].pct;
+    const delta=newVal-oldVal;
+    simState[changedIdx].pct=newVal;
+    const others=simState.filter((_,i)=>i!==changedIdx);
+    if(others.length){
+      const sumOthers=others.reduce((s,o)=>s+o.pct,0);
+      if(sumOthers>0){ others.forEach(o=>{ o.pct=Math.max(0, o.pct-delta*(o.pct/sumOthers)); }); }
+      else{ others.forEach(o=>{ o.pct=Math.max(0, -delta/others.length); }); }
+    }
+    const total=simState.reduce((s,o)=>s+o.pct,0);
+    if(total>0 && Math.abs(total-100)>0.001){ const f=100/total; simState.forEach(o=>{ o.pct*=f; }); }
+    renderSimulator();
+  }
+  document.getElementById("tfSimTotalSkala").addEventListener("change", renderSimulator);
+  document.getElementById("tfSimTerapkan").addEventListener("click", ()=>{
+    const totalSkala=parseFloat(document.getElementById("tfSimTotalSkala").value)||0;
+    simState.forEach(s=>{ s.item.kelipatan=Math.round((s.pct/100*totalSkala)*100)/100; });
+    renderList();
+    showToast("Kelipatan diterapkan dari simulator ke tabel di atas — jangan lupa tekan Simpan Tarif Jabatan");
+  });
+  initSimState();
+  renderSimulator();
+
   renderList();
 }
 
@@ -1265,15 +1347,21 @@ function renderBonus(c){
   }
   function renderHist(){
     const rows=[...BONUS].sort((a,b)=>b.tanggalBayar.localeCompare(a.tanggalBayar));
-    document.getElementById("bnHistBody").innerHTML = rows.length ? rows.map(b=>`
-      <tr>
+    const selectedUnit=document.getElementById("bnUnit").value;
+    document.getElementById("bnHistBody").innerHTML = rows.length ? rows.map(b=>{
+      const hl = selectedUnit && b.unitKey===selectedUnit;
+      const color = unitColor(b.unitKey);
+      const style = hl ? ` style="background:${color}22;border-left:3px solid ${color};"` : '';
+      return `
+      <tr class="${hl?'bonus-row-hl':''}"${style}>
         <td class="rowdate">${b.tanggalBayar}</td>
         <td>${escapeHtml(karyawanLabel(b.karyawanId))}</td>
         <td>${escapeHtml(unitLabel(b.unitKey))}</td>
         <td>${b.bulan}</td>
         <td>${formatRupiah(b.jumlah)}</td>
         <td><button class="btn btn-danger btn-sm" data-delbonus="${b.id}">Hapus</button></td>
-      </tr>`).join("") : `<tr><td colspan="6" class="empty-state">Belum ada riwayat.</td></tr>`;
+      </tr>`;
+    }).join("") : `<tr><td colspan="6" class="empty-state">Belum ada riwayat.</td></tr>`;
     document.querySelectorAll("[data-delbonus]").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         if(await customConfirm("Hapus catatan bonus ini?","Ya, Hapus")){
@@ -1283,7 +1371,7 @@ function renderBonus(c){
       });
     });
   }
-  function refreshAll(){ renderPool(); renderKaryawanBonusForm(); }
+  function refreshAll(){ renderPool(); renderKaryawanBonusForm(); renderHist(); }
   document.getElementById("bnUnit").addEventListener("change", refreshAll);
   document.getElementById("bnTahun").addEventListener("change", refreshAll);
   document.getElementById("bnBulan").addEventListener("change", refreshAll);
