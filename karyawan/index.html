@@ -973,13 +973,18 @@ function renderDaftar(c){
 /* ================= GAJI BULANAN ================= */
 /* ================= TARIF JABATAN ================= */
 const CONTOH_TARIF_JABATAN=[
-  { nama:"Kepala Operasional", kelipatan:5 },
-  { nama:"Koordinator Unit", kelipatan:3 },
-  { nama:"Admin Keuangan", kelipatan:2.5 },
-  { nama:"Kasir", kelipatan:1.5 },
-  { nama:"Staf Desain", kelipatan:1.5 },
-  { nama:"Staf Gudang/Stok", kelipatan:1 },
+  { nama:"Kepala Operasional", kelipatan:5, alasan:"Awasi semua unit" },
+  { nama:"Koordinator Unit", kelipatan:4, alasan:"Pimpin tim, unit besar/berkembang" },
+  { nama:"Penanggung Jawab Unit (sendiri)", kelipatan:2, alasan:"Tanggung jawab luas, tapi skala/volume masih kecil" },
+  { nama:"Admin Keuangan", kelipatan:2, alasan:"Pegang data uang seluruh unit (lintas unit, bukan cuma 1)" },
+  { nama:"Kasir", kelipatan:1, alasan:"Eksekusi transaksi" },
+  { nama:"Staf Desain", kelipatan:1, alasan:"Keahlian spesifik" },
+  { nama:"Staf Gudang/Stok", kelipatan:1, alasan:"Operasional dasar" },
 ];
+function defaultKelipatanUntuk(nama){
+  const d=CONTOH_TARIF_JABATAN.find(t=>normalizeJabatanName(t.nama)===normalizeJabatanName(nama));
+  return d ? d.kelipatan : null;
+}
 function renderTarifJabatan(c){
   c.innerHTML=`
     <div class="card card-pad" style="max-width:640px;margin-bottom:18px;">
@@ -1027,20 +1032,35 @@ function renderTarifJabatan(c){
 
   function renderList(){
     const basis=currentBasis();
-    document.getElementById("tfBody").innerHTML = localList.length ? localList.map((t,i)=>`
+    document.getElementById("tfBody").innerHTML = localList.length ? localList.map((t,i)=>{
+      const def=defaultKelipatanUntuk(t.nama);
+      const isDefault = def!==null && Math.abs(def-t.kelipatan)<0.001;
+      return `
       <tr data-idx="${i}">
         <td>
           <button class="btn btn-ghost btn-sm" data-move="up" data-idx="${i}" ${i===0?"disabled":""} title="Naikkan">↑</button>
           <button class="btn btn-ghost btn-sm" data-move="down" data-idx="${i}" ${i===localList.length-1?"disabled":""} title="Turunkan">↓</button>
         </td>
         <td style="text-align:left;"><input type="text" data-tf-nama="${i}" value="${escapeHtml(t.nama)}" style="width:100%;"></td>
-        <td><input type="number" step="0.1" min="0" data-tf-kelipatan="${i}" value="${t.kelipatan}" style="width:80px;text-align:right;"></td>
+        <td>
+          <input type="number" step="0.1" min="0" data-tf-kelipatan="${i}" value="${t.kelipatan}" style="width:80px;text-align:right;">
+          ${def!==null ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;">${isDefault?'(nilai default)':`default: ${def} <a href="javascript:void(0)" data-reset-default="${i}" style="color:var(--moss-dark);font-weight:600;">↺ kembalikan</a>`}</div>` : ''}
+        </td>
         <td>${formatRupiah(Math.round(basis*t.kelipatan))}</td>
         <td><button class="btn btn-danger btn-sm" data-hapus="${i}">Hapus</button></td>
-      </tr>`).join("") : `<tr><td colspan="5" class="empty-state">Belum ada jabatan. Klik "Isi Contoh Bawaan" atau "+ Tambah Jabatan".</td></tr>`;
+      </tr>`;
+    }).join("") : `<tr><td colspan="5" class="empty-state">Belum ada jabatan. Klik "Isi Contoh Bawaan" atau "+ Tambah Jabatan".</td></tr>`;
 
     document.querySelectorAll("[data-tf-nama]").forEach(inp=>{
       inp.addEventListener("input", e=>{ localList[+e.target.getAttribute("data-tf-nama")].nama=e.target.value; });
+      inp.addEventListener("change", renderList);
+    });
+    document.querySelectorAll("[data-reset-default]").forEach(a=>{
+      a.addEventListener("click", ()=>{
+        const idx=+a.getAttribute("data-reset-default");
+        const def=defaultKelipatanUntuk(localList[idx].nama);
+        if(def!==null){ localList[idx].kelipatan=def; renderList(); }
+      });
     });
     document.querySelectorAll("[data-tf-kelipatan]").forEach(inp=>{
       inp.addEventListener("input", e=>{
