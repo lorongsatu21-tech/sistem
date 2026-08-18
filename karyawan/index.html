@@ -1087,17 +1087,17 @@ function renderGaji(c){
   const years=[...new Set([now.getFullYear(), now.getFullYear()-1, now.getFullYear()+1])].sort((a,b)=>b-a);
   const yearOptions=years.map(y=>`<option value="${y}">${y}</option>`).join("");
   c.innerHTML=`
-    <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;">Isi semua angka dalam <b>notasi ribuan</b> (mis. gaji Rp1.500.000 riil → ketik <b>1500</b>), konsisten dengan aplikasi Keuangan. Nilai riil otomatis ditampilkan di halaman <b>Struk Gaji</b>.</div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;">Isi semua angka dalam <b>notasi ribuan</b>, konsisten dengan aplikasi Keuangan. Nilai riil otomatis ditampilkan di halaman <b>Struk Gaji</b>.</div>
     <div class="controlbar">
       <div class="field-inline"><label class="f-label">Tahun</label><select id="gjTahun">${yearOptions}</select></div>
       <div class="field-inline"><label class="f-label">Bulan</label><select id="gjBulan">${monthOptions}</select></div>
     </div>
-    <div class="tbl-wrap" style="margin-bottom:22px;"><table>
-      <thead><tr><th>Nama</th><th>Jabatan</th><th>Gaji Pokok</th><th>Jumlah Dibayar</th><th>Tunjangan Jabatan</th><th>Bonus</th><th>Total</th><th>Keterangan</th><th></th></tr></thead>
+    <div class="tbl-wrap" style="margin-bottom:8px;"><table>
+      <thead><tr><th>Nama</th><th>Jabatan</th><th>Gaji Pokok</th><th>Tunjangan Jabatan</th><th>Bonus</th><th>Total</th><th>Keterangan</th></tr></thead>
       <tbody id="gjBody"></tbody>
       <tfoot><tr id="gjFoot"></tr></tfoot>
     </table></div>
-    <div style="font-size:11px;color:var(--muted);margin:-16px 0 14px;">Gaji Pokok mengikuti Daftar Karyawan · Tunjangan Jabatan mengikuti Tarif Jabatan (otomatis menyesuaikan kalau jabatan berubah) · Bonus otomatis dari halaman <a href="javascript:void(0)" id="gjLinkBonus" style="color:var(--moss-dark);font-weight:600;">Bonus →</a> (kolom ini tidak bisa diedit di sini)</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Semua kolom di sini <b>otomatis mengikuti sumbernya</b> dan tidak bisa diedit langsung — Gaji Pokok dari <a href="javascript:void(0)" id="gjLinkDaftar" style="color:var(--moss-dark);font-weight:600;">Daftar Karyawan →</a>, Tunjangan dari <a href="javascript:void(0)" id="gjLinkTarif" style="color:var(--moss-dark);font-weight:600;">Tarif Jabatan →</a>, Bonus dari <a href="javascript:void(0)" id="gjLinkBonus" style="color:var(--moss-dark);font-weight:600;">Bonus →</a>. Kalau perlu diubah, edit lewat halaman masing-masing. Hanya kolom <b>Keterangan</b> yang diisi manual di sini.</div>
     <button class="btn btn-primary" id="gjSimpan">Simpan Pembayaran Gaji Bulan Ini</button>
     <span id="gjStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
 
@@ -1110,6 +1110,8 @@ function renderGaji(c){
   document.getElementById("gjBulan").value=String(now.getMonth()+1);
   document.getElementById("gjTahun").value=String(now.getFullYear());
   document.getElementById("gjLinkBonus").addEventListener("click", ()=>navigateTo("bonus"));
+  document.getElementById("gjLinkDaftar").addEventListener("click", ()=>navigateTo("daftar"));
+  document.getElementById("gjLinkTarif").addEventListener("click", ()=>navigateTo("tarif"));
 
   function ym(){ return `${document.getElementById("gjTahun").value}-${String(document.getElementById("gjBulan").value).padStart(2,"0")}`; }
   function bonusForKaryawanMonth(karyawanId, currentYm){
@@ -1121,46 +1123,22 @@ function renderGaji(c){
     let totalGaji=0, totalTunjangan=0, totalBonus=0, totalSemua=0;
     document.getElementById("gjBody").innerHTML = aktif.length ? aktif.map(k=>{
       const existing=GAJI.find(g=>g.karyawanId===k.id && g.bulan===currentYm);
-      const jumlah = existing ? existing.jumlah : k.gajiPokok;
-      const tunjangan = existing ? (existing.tunjanganJabatan||0) : tarifUntukJabatan(k.jabatan);
+      const jumlah = k.gajiPokok; // selalu ikut Daftar Karyawan
+      const tunjangan = tarifUntukJabatan(k.jabatan); // selalu ikut Tarif Jabatan
       const bonus = bonusForKaryawanMonth(k.id, currentYm);
       const rowTotal = jumlah + tunjangan + bonus;
       totalGaji+=jumlah; totalTunjangan+=tunjangan; totalBonus+=bonus; totalSemua+=rowTotal;
       return `<tr data-karyawan="${k.id}">
         <td style="text-align:left;">${escapeHtml(k.nama)}</td>
         <td style="text-align:left;">${escapeHtml(k.jabatan||"-")}</td>
-        <td>${formatRupiah(k.gajiPokok)}</td>
-        <td><div class="input-money" style="max-width:150px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-gaji-input="${k.id}" value="${jumlah?jumlah.toLocaleString('id-ID'):''}"></div></td>
-        <td><div class="input-money" style="max-width:140px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-tunjangan-input="${k.id}" value="${tunjangan?tunjangan.toLocaleString('id-ID'):''}" placeholder="0"></div></td>
-        <td data-bonus-display="${k.id}" style="color:var(--muted);">${bonus?formatRupiah(bonus):"-"}</td>
-        <td data-total-display="${k.id}" style="font-weight:700;">${formatRupiah(rowTotal)}</td>
+        <td>${formatRupiah(jumlah)}</td>
+        <td>${tunjangan?formatRupiah(tunjangan):"-"}</td>
+        <td style="color:var(--muted);">${bonus?formatRupiah(bonus):"-"}</td>
+        <td style="font-weight:700;">${formatRupiah(rowTotal)}</td>
         <td><input type="text" data-ket-input="${k.id}" value="${escapeHtml((existing&&existing.keterangan)||'')}" placeholder="opsional" style="width:100%;"></td>
-        <td></td>
       </tr>`;
-    }).join("") : `<tr><td colspan="9" class="empty-state">Belum ada karyawan aktif.</td></tr>`;
-    document.getElementById("gjFoot").innerHTML=`<td colspan="3">Total</td><td id="gjFootGaji">${formatRupiah(totalGaji)}</td><td>${formatRupiah(totalTunjangan)}</td><td>${formatRupiah(totalBonus)}</td><td id="gjFootTotal">${formatRupiah(totalSemua)}</td><td colspan="2"></td>`;
-    document.querySelectorAll("[data-gaji-input]").forEach(inp=>{
-      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalcRow(e.target.getAttribute("data-gaji-input")); recalcTotal(); });
-    });
-    document.querySelectorAll("[data-tunjangan-input]").forEach(inp=>{
-      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalcRow(e.target.getAttribute("data-tunjangan-input")); recalcTotal(); });
-    });
-  }
-  function recalcRow(karyawanId){
-    const gajiInp=document.querySelector(`[data-gaji-input="${karyawanId}"]`);
-    const tunjInp=document.querySelector(`[data-tunjangan-input="${karyawanId}"]`);
-    const bonus=bonusForKaryawanMonth(karyawanId, ym());
-    const rowTotal=parseMoneyInput(gajiInp.value)+parseMoneyInput(tunjInp.value)+bonus;
-    document.querySelector(`[data-total-display="${karyawanId}"]`).textContent=formatRupiah(rowTotal);
-  }
-  function recalcTotal(){
-    let totalGaji=0, totalTunjangan=0, totalSemua=0, totalBonus=0;
-    document.querySelectorAll("[data-gaji-input]").forEach(inp=>{ totalGaji+=parseMoneyInput(inp.value); });
-    document.querySelectorAll("[data-tunjangan-input]").forEach(inp=>{ totalTunjangan+=parseMoneyInput(inp.value); });
-    document.querySelectorAll("[data-bonus-display]").forEach(td=>{ totalBonus+=bonusForKaryawanMonth(td.getAttribute("data-bonus-display"), ym()); });
-    totalSemua=totalGaji+totalTunjangan+totalBonus;
-    document.getElementById("gjFootGaji").textContent=formatRupiah(totalGaji);
-    document.getElementById("gjFootTotal").textContent=formatRupiah(totalSemua);
+    }).join("") : `<tr><td colspan="7" class="empty-state">Belum ada karyawan aktif.</td></tr>`;
+    document.getElementById("gjFoot").innerHTML=`<td colspan="2">Total</td><td>${formatRupiah(totalGaji)}</td><td>${formatRupiah(totalTunjangan)}</td><td>${formatRupiah(totalBonus)}</td><td>${formatRupiah(totalSemua)}</td><td></td>`;
   }
   function renderHist(){
     const rows=[...GAJI].sort((a,b)=>b.tanggalBayar.localeCompare(a.tanggalBayar));
@@ -1187,17 +1165,16 @@ function renderGaji(c){
   document.getElementById("gjBulan").addEventListener("change", renderForm);
   document.getElementById("gjSimpan").addEventListener("click", async ()=>{
     const currentYm=ym();
-    document.querySelectorAll("[data-gaji-input]").forEach(inp=>{
-      const karyawanId=inp.getAttribute("data-gaji-input");
-      const jumlah=parseMoneyInput(inp.value);
-      const tunjInput=document.querySelector(`[data-tunjangan-input="${karyawanId}"]`);
-      const tunjanganJabatan=tunjInput?parseMoneyInput(tunjInput.value):0;
-      const ketInput=document.querySelector(`[data-ket-input="${karyawanId}"]`);
+    const aktif=KARYAWAN.filter(k=>k.status==="aktif");
+    aktif.forEach(k=>{
+      const jumlah=k.gajiPokok;
+      const tunjanganJabatan=tarifUntukJabatan(k.jabatan);
+      const ketInput=document.querySelector(`[data-ket-input="${k.id}"]`);
       const keterangan=ketInput?ketInput.value.trim():"";
-      if(!jumlah && !tunjanganJabatan) return;
-      const existing=GAJI.find(g=>g.karyawanId===karyawanId && g.bulan===currentYm);
+      if(!jumlah && !tunjanganJabatan && !keterangan) return;
+      const existing=GAJI.find(g=>g.karyawanId===k.id && g.bulan===currentYm);
       if(existing){ existing.jumlah=jumlah; existing.tunjanganJabatan=tunjanganJabatan; existing.keterangan=keterangan; }
-      else{ GAJI.push({ id:uid(), karyawanId, bulan:currentYm, jumlah, tunjanganJabatan, tanggalBayar:todayStr(), keterangan }); }
+      else{ GAJI.push({ id:uid(), karyawanId:k.id, bulan:currentYm, jumlah, tunjanganJabatan, tanggalBayar:todayStr(), keterangan }); }
     });
     const ok=await saveGaji();
     document.getElementById("gjStatus").textContent = ok ? `Tersimpan · ${new Date().toLocaleTimeString("id-ID")}` : "Gagal tersimpan — coba lagi";
