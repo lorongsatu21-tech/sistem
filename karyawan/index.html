@@ -240,7 +240,7 @@ const SPREADSHEET_ID = "1bAS8NIzcSSENH5o9MSucaINMURUcwXFCRln0w4_g23A";
 const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
 const SHEET_UNIT="Unit", SHEET_KAS_MASUK="Kas Masuk", SHEET_TARGET_OMZET="Target Omzet";
-const SHEET_KARYAWAN="Karyawan", SHEET_GAJI="Gaji", SHEET_BONUS="Bonus", SHEET_TARIF_JABATAN="Tarif Jabatan";
+const SHEET_KARYAWAN="Karyawan", SHEET_GAJI="Gaji", SHEET_BONUS="Bonus", SHEET_TARIF_JABATAN="Tarif Jabatan", SHEET_PLAFON_GAJI="Plafon Gaji";
 const HDR_KARYAWAN=["ID Karyawan","Nama","Unit","Jabatan","Gaji Pokok","Status","No HP",
   "NIK","Tempat Lahir","Tanggal Lahir","Jenis Kelamin","Alamat","Akun Medsos",
   "Tanggal Mulai Kerja","Jenis Karyawan","Level Kompetensi",
@@ -249,6 +249,7 @@ const HDR_KARYAWAN=["ID Karyawan","Nama","Unit","Jabatan","Gaji Pokok","Status",
 const HDR_GAJI=["Tanggal Bayar","Karyawan","Bulan","Jumlah","Tunjangan Jabatan","Keterangan"];
 const HDR_BONUS=["Tanggal Bayar","Karyawan","Unit","Bulan","Jumlah"];
 const HDR_TARIF_JABATAN=["Urutan","Jabatan","Kelipatan","Nilai Basis"];
+const HDR_PLAFON_GAJI=["Tahun","Plafon","Total Gaji Pokok Saat Itu","Tanggal Dicatat","Bulan Terendah 1","Bulan Terendah 2","Bulan Terendah 3","Rata Alokasi Operasional"];
 const MONTH_NAMES=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
 function asText(v){ return "'"+v; }
@@ -385,6 +386,7 @@ let PEMASUKAN_RAW=[];        // baris mentah "Kas Masuk" (dipakai hitung realisa
 let TARGET_OMZET={};         // { unitKey: { "YYYY-MM": target } }
 let TARIF_JABATAN=[];        // [{nama, kelipatan}] urutan tetap = urutan tanggung jawab (tinggi -> rendah)
 let NEXT_KARYAWAN_ID=1;      // nomor ID karyawan berikutnya, permanen naik terus meski ada yg dihapus
+let PLAFON_GAJI=[];          // [{tahun, plafon, totalGajiSaatItu, tanggalDicatat, detail:{bulanTerendah,rataOperasional}}]
 let NILAI_BASIS=0;           // Rp, dikalikan dengan kelipatan tiap jabatan
 let KARYAWAN=[];             // [{id,nama,unitKey,jabatan,gajiPokok,status,noHp}]
 let GAJI=[];                 // [{id,karyawanId,bulan,jumlah,tanggalBayar,keterangan}]
@@ -567,11 +569,63 @@ function tarifUntukJabatan(namaJabatan){
   return t ? Math.round(NILAI_BASIS*t.kelipatan) : 0;
 }
 
+const PORSI_GAJI_DARI_OPERASIONAL = 0.6; // 60% dari Kantong Operasional dialokasikan untuk Gaji Pokok
+function hitungPlafonGaji(year){
+  const byUnit=unitByLabelMap(UNITS);
+  const monthly=[]; // [{m, omzet, operasional}]
+  for(let m=1;m<=12;m++){
+    const from=`${year}-${String(m).padStart(2,"0")}-01`;
+    const lastDay=new Date(year,m,0).getDate();
+    const to=`${year}-${String(m).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
+    let omzet=0, operasional=0;
+    PEMASUKAN_RAW.forEach(r=>{
+      const dt=normalizeDateCell(r["Tanggal"]); if(!dt||dt<from||dt>to) return;
+      omzet += (Number(r["Kas Pagi"])||0)+(Number(r["Kas Sore"])||0)+(Number(r["Transfer Pagi"])||0)+(Number(r["Transfer Sore"])||0);
+      operasional += Number(r["Alokasi Operasional"])||0;
+    });
+    monthly.push({ m, omzet, operasional });
+  }
+  const withData = monthly.filter(x=>x.omzet>0);
+  if(withData.length<1) return null;
+  const sorted=[...withData].sort((a,b)=>a.omzet-b.omzet);
+  const terendah = sorted.slice(0, Math.min(3, sorted.length));
+  const rataOperasional = Math.round(terendah.reduce((s,x)=>s+x.operasional,0)/terendah.length);
+  const plafon = Math.round(rataOperasional * PORSI_GAJI_DARI_OPERASIONAL);
+  return { bulanTerendah: terendah.map(x=>({ nama:MONTH_NAMES[x.m-1], omzet:x.omzet, operasional:x.operasional })), rataOperasional, plafon };
+}
+function rowsFromPlafonGaji(){
+  return PLAFON_GAJI.map(p=>{
+    let b1="", b2="", b3="", rataOp="";
+    if(p.detail && p.detail.bulanTerendah){
+      const bt=p.detail.bulanTerendah;
+      b1 = bt[0] ? `${bt[0].nama} (${bt[0].omzet})` : "";
+      b2 = bt[1] ? `${bt[1].nama} (${bt[1].omzet})` : "";
+      b3 = bt[2] ? `${bt[2].nama} (${bt[2].omzet})` : "";
+      rataOp = Math.round(p.detail.rataOperasional);
+    } else {
+      const parts=(p.bulanTerendahStr||"").split(", ");
+      b1=parts[0]||""; b2=parts[1]||""; b3=parts[2]||"";
+      rataOp=p.rataOperasional||"";
+    }
+    return { "Tahun":asText(p.tahun), "Plafon":p.plafon, "Total Gaji Pokok Saat Itu":p.totalGajiSaatItu, "Tanggal Dicatat":asText(p.tanggalDicatat),
+      "Bulan Terendah 1":b1, "Bulan Terendah 2":b2, "Bulan Terendah 3":b3, "Rata Alokasi Operasional":rataOp };
+  });
+}
+function plafonGajiFromRows(rows){
+  return rows.map(r=>({
+    tahun:String(r["Tahun"]||"").replace(/^'/,""), plafon:Number(r["Plafon"])||0, totalGajiSaatItu:Number(r["Total Gaji Pokok Saat Itu"])||0,
+    tanggalDicatat:String(r["Tanggal Dicatat"]||"").replace(/^'/,""),
+    bulanTerendahStr:[r["Bulan Terendah 1"],r["Bulan Terendah 2"],r["Bulan Terendah 3"]].filter(Boolean).join(", "),
+    rataOperasional:Number(r["Rata Alokasi Operasional"])||0
+  })).filter(p=>p.tahun);
+}
+async function savePlafonGaji(){ return sheetsReplaceAll(SHEET_PLAFON_GAJI, HDR_PLAFON_GAJI, rowsFromPlafonGaji()); }
+
 /* ================= NAV / ROUTER ================= */
 const NAV=[
   { group:"Utama", items:[ {id:"sampul",label:"Sampul"}, {id:"dashboard",label:"Dashboard"} ] },
   { group:"Karyawan", items:[ {id:"daftar",label:"Daftar Karyawan"}, {id:"dokumen",label:"Formulir & Surat"} ] },
-  { group:"Pembayaran", items:[ {id:"gaji",label:"Gaji Bulanan"}, {id:"bonus",label:"Bonus"}, {id:"tarif",label:"Tarif Jabatan"}, {id:"struk",label:"Struk Gaji"} ] }
+  { group:"Pembayaran", items:[ {id:"gaji",label:"Gaji Bulanan"}, {id:"bonus",label:"Bonus"}, {id:"tarif",label:"Tarif Jabatan"}, {id:"plafon",label:"Plafon Gaji"}, {id:"struk",label:"Struk Gaji"} ] }
 ];
 const PAGE_META={
   "sampul":["Sampul","LORONGSATU21 — Karyawan"],
@@ -581,6 +635,7 @@ const PAGE_META={
   "gaji":["Gaji Bulanan","Catat pembayaran gaji tiap bulan"],
   "bonus":["Bonus","Bonus karyawan berdasarkan pencapaian target omzet unit"],
   "tarif":["Tarif Jabatan","Urutan jabatan, kelipatan, dan nilai basis tunjangan"],
+  "plafon":["Plafon Gaji","Batas total gaji pokok berdasarkan kemampuan usaha di bulan tersepi"],
   "struk":["Struk Gaji","Cetak struk gaji per karyawan, siap print"]
 };
 let currentPage="dashboard";
@@ -611,7 +666,7 @@ function navigateTo(id){
   currentPage=id||"dashboard";
   setActiveNav(currentPage);
   const c=document.getElementById("pageContent");
-  const renderers={ "sampul":renderSampul,"dashboard":renderDashboard,"daftar":renderDaftar,"dokumen":renderDokumen,"gaji":renderGaji,"bonus":renderBonus,"tarif":renderTarifJabatan,"struk":renderStrukGaji };
+  const renderers={ "sampul":renderSampul,"dashboard":renderDashboard,"daftar":renderDaftar,"dokumen":renderDokumen,"gaji":renderGaji,"bonus":renderBonus,"tarif":renderTarifJabatan,"plafon":renderPlafonGaji,"struk":renderStrukGaji };
   try{ (renderers[currentPage]||renderDashboard)(c); }
   catch(err){ console.error("Render error",currentPage,err); c.innerHTML=`<div class="empty-state">Terjadi kendala membuka halaman ini.</div>`; }
 }
@@ -1163,6 +1218,90 @@ function renderStrukGaji(c){
   render();
 }
 
+/* ================= PLAFON GAJI ================= */
+function renderPlafonGaji(c){
+  const now=new Date();
+  const years=[...new Set(PEMASUKAN_RAW.map(r=>{ const dt=normalizeDateCell(r["Tanggal"]); return dt?dt.slice(0,4):null; }).filter(Boolean))];
+  if(!years.includes(String(now.getFullYear()))) years.push(String(now.getFullYear()));
+  const yearOptions=[...new Set(years)].sort((a,b)=>b.localeCompare(a)).map(y=>`<option value="${y}">${y}</option>`).join("");
+
+  c.innerHTML=`
+    <div class="card card-pad" style="max-width:640px;margin-bottom:18px;">
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.6;">
+        Plafon Gaji dihitung dari <b>rata-rata Kantong Operasional pada 3 bulan omzet paling rendah</b> dalam setahun,
+        dikali <b>${(PORSI_GAJI_DARI_OPERASIONAL*100).toFixed(0)}%</b> (porsi Gaji dari Kantong Operasional).
+        Angka ini jadi acuan: kalau Total Gaji Pokok semua karyawan aktif masih di bawah plafon, ada ruang untuk tambah karyawan atau naikkan gaji.
+        Kalau sudah melebihi, sebaiknya ditahan dulu sampai omzet membaik.
+      </div>
+    </div>
+    <div class="controlbar">
+      <div class="field-inline"><label class="f-label">Tahun</label><select id="pfTahun">${yearOptions}</select></div>
+    </div>
+    <div id="pfHasil"></div>
+
+    <div class="section-title" style="margin-top:26px;">Riwayat Laporan Akhir Tahun</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tahun</th><th>Plafon</th><th>Total Gaji Pokok Saat Dicatat</th><th>Bulan Terendah yang Dipakai</th><th>Tanggal Dicatat</th></tr></thead>
+      <tbody id="pfHistBody"></tbody>
+    </table></div>
+  `;
+  document.getElementById("pfTahun").value=String(now.getFullYear());
+  document.getElementById("pfTahun").addEventListener("change", render);
+
+  function totalGajiPokokAktif(){
+    return KARYAWAN.filter(k=>k.status==="aktif").reduce((s,k)=>s+(k.gajiPokok||0),0);
+  }
+
+  function render(){
+    const year=parseInt(document.getElementById("pfTahun").value,10);
+    const hasil=hitungPlafonGaji(year);
+    const totalGaji=totalGajiPokokAktif();
+    if(!hasil){
+      document.getElementById("pfHasil").innerHTML=`<div class="empty-state">Belum ada data Kas Masuk untuk tahun ${year}.</div>`;
+      return;
+    }
+    const sisa=hasil.plafon-totalGaji;
+    const over=sisa<0;
+    document.getElementById("pfHasil").innerHTML=`
+      <div class="grid3" style="margin-bottom:16px;">
+        <div class="stat-card c-gold"><div class="label">Rata Operasional (3 Bulan Terendah)</div><div class="value">${formatRupiah(hasil.rataOperasional)}</div><div class="sub">notasi ribuan</div></div>
+        <div class="stat-card c-blue"><div class="label">Plafon Gaji (${(PORSI_GAJI_DARI_OPERASIONAL*100).toFixed(0)}%)</div><div class="value">${formatRupiah(hasil.plafon)}</div><div class="sub">notasi ribuan</div></div>
+        <div class="stat-card ${over?'':'c-plum'}" style="${over?'border-left-color:var(--danger);':''}"><div class="label">Total Gaji Pokok Aktif Saat Ini</div><div class="value" style="${over?'color:var(--danger);':''}">${formatRupiah(totalGaji)}</div><div class="sub">${over?`Melebihi plafon ${formatRupiah(Math.abs(sisa))}`:`Sisa ruang ${formatRupiah(sisa)}`}</div></div>
+      </div>
+      <div class="card card-pad" style="margin-bottom:16px;">
+        <div class="section-title" style="font-size:13px;">3 Bulan Omzet Terendah Tahun ${year}</div>
+        <table style="width:100%;font-size:13px;"><tbody>
+          ${hasil.bulanTerendah.map(b=>`<tr><td style="text-align:left;padding:4px 0;">${b.nama}</td><td style="text-align:right;padding:4px 0;">Omzet ${formatRupiah(b.omzet)}</td><td style="text-align:right;padding:4px 0;color:var(--muted);">Operasional ${formatRupiah(b.operasional)}</td></tr>`).join("")}
+        </tbody></table>
+      </div>
+      <button class="btn btn-primary" id="pfSimpanLaporan">Simpan sebagai Laporan Akhir Tahun ${year}</button>
+      <span id="pfStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
+    `;
+    document.getElementById("pfSimpanLaporan").addEventListener("click", async ()=>{
+      const existing=PLAFON_GAJI.find(p=>p.tahun===String(year));
+      if(existing && !(await customConfirm(`Sudah ada laporan Plafon Gaji untuk tahun ${year}. Timpa dengan hasil terbaru?`,"Ya, Timpa"))) return;
+      const record={ tahun:String(year), plafon:hasil.plafon, totalGajiSaatItu:totalGaji, tanggalDicatat:todayStr(), detail:hasil };
+      if(existing){ Object.assign(existing, record); } else { PLAFON_GAJI.push(record); }
+      const ok=await savePlafonGaji();
+      document.getElementById("pfStatus").textContent = ok?`Tersimpan · ${new Date().toLocaleTimeString("id-ID")}`:"Gagal tersimpan — coba lagi";
+      showToast(ok?"Laporan Plafon Gaji tersimpan":"Gagal menyimpan");
+      renderHist();
+    });
+  }
+  function renderHist(){
+    const rows=[...PLAFON_GAJI].sort((a,b)=>b.tahun.localeCompare(a.tahun));
+    document.getElementById("pfHistBody").innerHTML = rows.length ? rows.map(p=>`
+      <tr>
+        <td class="rowdate">${p.tahun}</td>
+        <td>${formatRupiah(p.plafon)}</td>
+        <td>${formatRupiah(p.totalGajiSaatItu)}</td>
+        <td style="text-align:left;font-size:12px;color:var(--muted);">${escapeHtml(p.bulanTerendahStr||"-")}</td>
+        <td>${p.tanggalDicatat}</td>
+      </tr>`).join("") : `<tr><td colspan="5" class="empty-state">Belum ada laporan tersimpan.</td></tr>`;
+  }
+  render(); renderHist();
+}
+
 function renderGaji(c){
   const now=new Date();
   const monthOptions=MONTH_NAMES.map((mn,i)=>`<option value="${i+1}">${mn}</option>`).join("");
@@ -1447,14 +1586,15 @@ function renderBonus(c){
 
 /* ================= INIT ================= */
 async function loadAppData(){
-  const [unitRows, kasRows, targetRows, karyawanRows, gajiRows, bonusRows, tarifRows] = await Promise.all([
+  const [unitRows, kasRows, targetRows, karyawanRows, gajiRows, bonusRows, tarifRows, plafonRows] = await Promise.all([
     sheetsGetAll(SHEET_UNIT), sheetsGetAll(SHEET_KAS_MASUK), sheetsGetAll(SHEET_TARGET_OMZET),
-    sheetsGetAll(SHEET_KARYAWAN), sheetsGetAll(SHEET_GAJI), sheetsGetAll(SHEET_BONUS), sheetsGetAll(SHEET_TARIF_JABATAN)
+    sheetsGetAll(SHEET_KARYAWAN), sheetsGetAll(SHEET_GAJI), sheetsGetAll(SHEET_BONUS), sheetsGetAll(SHEET_TARIF_JABATAN), sheetsGetAll(SHEET_PLAFON_GAJI)
   ]);
   UNITS = unitRows && unitRows.length ? unitsFromRows(unitRows) : [];
   PEMASUKAN_RAW = kasRows||[];
   TARGET_OMZET = targetOmzetFromRows(targetRows||[], UNITS);
   KARYAWAN = karyawanFromRows(karyawanRows||[], UNITS);
+  PLAFON_GAJI = plafonGajiFromRows(plafonRows||[]);
   NEXT_KARYAWAN_ID = nextIdCounterFromRows(karyawanRows||[]);
   GAJI = gajiFromRows(gajiRows||[], KARYAWAN);
   BONUS = bonusFromRows(bonusRows||[], KARYAWAN, UNITS);
