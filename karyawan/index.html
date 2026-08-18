@@ -1012,7 +1012,10 @@ function renderTarifJabatan(c){
     </div>
 
     <div class="card card-pad" style="max-width:640px;">
-      <div class="section-title" style="font-size:13px;">Simulator Kelipatan (Maksimal 10 = 100%)</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+        <div class="section-title" style="font-size:13px;margin:0;">Simulator Kelipatan (Maksimal 10 = 100%)</div>
+        <button class="btn btn-ghost btn-sm" id="tfSimContoh">Isi Contoh Bawaan (7 Jabatan)</button>
+      </div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">
         Atur langsung angka <b>Kelipatan</b> tiap jabatan — total gabungan maksimal <b>10</b> (setara 100%).
         Kalau satu dinaikkan (mis. 3 → 4), yang lain otomatis turun supaya total tetap di angka 10.
@@ -1021,7 +1024,10 @@ function renderTarifJabatan(c){
       </div>
       <div id="tfSimList"></div>
       <div style="font-size:12.5px;font-weight:600;margin:10px 0;" id="tfSimTotal"></div>
-      <button class="btn btn-primary btn-sm" id="tfSimTerapkan">Terapkan ke Kelipatan</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" id="tfSimTerapkan">Terapkan ke Kelipatan</button>
+        <button class="btn btn-ghost btn-sm" id="tfSimResetDefault">↺ Kembalikan Semua ke Default</button>
+      </div>
     </div>
   `;
   let localList = TARIF_JABATAN.length ? TARIF_JABATAN.map(t=>({...t})) : [];
@@ -1123,18 +1129,37 @@ function renderTarifJabatan(c){
     const sumK=group.reduce((s,t)=>s+(Number(t.kelipatan)||0),0);
     simState = group.map(t=>({ item:t, kelipatan: sumK>0 ? (t.kelipatan/sumK*SIM_MAX_KELIPATAN) : (group.length?SIM_MAX_KELIPATAN/group.length:0) }));
   }
+  function defaultSimKelipatanUntuk(nama){
+    const groupDefaults = CONTOH_TARIF_JABATAN.filter(t=>normalizeJabatanName(t.nama)!=="kepala operasional");
+    const sumDefaults = groupDefaults.reduce((s,t)=>s+t.kelipatan,0);
+    const d = defaultKelipatanUntuk(nama);
+    if(d===null || sumDefaults<=0) return null;
+    return d/sumDefaults*SIM_MAX_KELIPATAN;
+  }
   function renderSimulator(){
     document.getElementById("tfSimList").innerHTML = simState.length ? simState.map((s,i)=>{
       const pct=(s.kelipatan/SIM_MAX_KELIPATAN*100);
+      const def=defaultSimKelipatanUntuk(s.item.nama);
+      const isDefault = def!==null && Math.abs(def-s.kelipatan)<0.01;
       return `<div class="pct-sim-row">
         <div style="text-align:left;font-size:13px;">${escapeHtml(s.item.nama||"(tanpa nama)")}</div>
-        <div><input type="number" step="0.1" min="0" max="${SIM_MAX_KELIPATAN}" data-sim-pct="${i}" value="${s.kelipatan.toFixed(2)}" style="width:75px;text-align:right;"></div>
+        <div>
+          <input type="number" step="0.1" min="0" max="${SIM_MAX_KELIPATAN}" data-sim-pct="${i}" value="${s.kelipatan.toFixed(2)}" style="width:75px;text-align:right;">
+          ${def!==null ? `<div style="font-size:9.5px;color:var(--muted);text-align:right;margin-top:2px;">${isDefault?'(default)':`def: ${def.toFixed(2)} <a href="javascript:void(0)" data-sim-reset="${i}" style="color:var(--moss-dark);font-weight:600;">↺</a>`}</div>` : ''}
+        </div>
         <div style="font-size:11.5px;color:var(--muted);text-align:right;">≈ ${pct.toFixed(1)}%</div>
       </div>`;
     }).join("") : `<div class="empty-state">Belum ada jabatan selain Kepala Operasional untuk disimulasikan.</div>`;
     document.querySelectorAll("[data-sim-pct]").forEach(inp=>{
       inp.addEventListener("change", e=>{
         redistribute(+e.target.getAttribute("data-sim-pct"), parseFloat(e.target.value)||0);
+      });
+    });
+    document.querySelectorAll("[data-sim-reset]").forEach(a=>{
+      a.addEventListener("click", ()=>{
+        const idx=+a.getAttribute("data-sim-reset");
+        const def=defaultSimKelipatanUntuk(simState[idx].item.nama);
+        if(def!==null) redistribute(idx, def);
       });
     });
     const total=simState.reduce((s,o)=>s+o.kelipatan,0);
@@ -1159,6 +1184,21 @@ function renderTarifJabatan(c){
     simState.forEach(s=>{ s.item.kelipatan=Math.round(s.kelipatan*100)/100; });
     renderList();
     showToast("Kelipatan diterapkan dari simulator ke tabel di atas — jangan lupa tekan Simpan Tarif Jabatan");
+  });
+  document.getElementById("tfSimContoh").addEventListener("click", async ()=>{
+    if(localList.length && !(await customConfirm("Timpa daftar yang ada dengan contoh bawaan (7 jabatan)?","Ya, Timpa"))) return;
+    localList = CONTOH_TARIF_JABATAN.map(t=>({nama:t.nama, kelipatan:t.kelipatan}));
+    if(!currentBasis()){ document.getElementById("tfBasis").value=(100).toLocaleString("id-ID"); }
+    renderList();
+    initSimState(); renderSimulator();
+  });
+  document.getElementById("tfSimResetDefault").addEventListener("click", ()=>{
+    simState.forEach(s=>{
+      const def=defaultSimKelipatanUntuk(s.item.nama);
+      if(def!==null) s.kelipatan=def;
+    });
+    renderSimulator();
+    showToast("Semua dikembalikan ke porsi default (belum diterapkan ke tabel — tekan Terapkan kalau sudah yakin)");
   });
   initSimState();
   renderSimulator();
@@ -1613,8 +1653,8 @@ async function loadAppData(){
   GAJI = gajiFromRows(gajiRows||[], KARYAWAN);
   BONUS = bonusFromRows(bonusRows||[], KARYAWAN, UNITS);
   const tarifParsed = tarifJabatanFromRows(tarifRows||[]);
-  TARIF_JABATAN = tarifParsed.list;
-  NILAI_BASIS = tarifParsed.basis;
+  TARIF_JABATAN = tarifParsed.list.length ? tarifParsed.list : CONTOH_TARIF_JABATAN.map(t=>({nama:t.nama, kelipatan:t.kelipatan}));
+  NILAI_BASIS = tarifParsed.basis || (tarifParsed.list.length ? 0 : 100);
 
   // Penyembuhan otomatis: samakan jabatan karyawan yang mirip (beda spasi/kapital) ke nama resmi di Tarif Jabatan
   KARYAWAN.forEach(k=>{
