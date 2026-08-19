@@ -239,6 +239,29 @@ input.count{width:100%;text-align:center;}
 .bar-chart-dual .bbar-wrap:first-child .bbar{border-radius:3px 0 0 0;}
 .bar-chart-dual .bbar-wrap:last-child .bbar{border-radius:0 3px 0 0;}
 
+/* ===== LAPORAN BULANAN ===== */
+.lb-header{text-align:center;margin-bottom:18px;}
+.lb-header .lb-eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;}
+.lb-header h2{margin:4px 0 2px;font-size:19px;color:var(--ink);}
+.lb-header .lb-sub{font-size:12px;color:var(--muted);}
+.lb-section{margin-bottom:20px;}
+.lb-section-title{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--moss-dark);border-bottom:2px solid var(--gold);padding-bottom:5px;margin-bottom:10px;}
+.lb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+@media (max-width:700px){.lb-grid{grid-template-columns:1fr 1fr;}}
+.lb-stat{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;}
+.lb-stat .lb-label{font-size:10.5px;color:var(--muted);margin-bottom:3px;}
+.lb-stat .lb-value{font-size:15px;font-weight:700;}
+.lb-stat .lb-note{font-size:10.5px;color:var(--muted);margin-top:2px;}
+.lb-notes-box{border:1px dashed var(--line);border-radius:8px;min-height:90px;padding:10px 12px;font-size:12px;color:var(--muted);}
+
+@media print{
+  .sidebar, .topheader, .hamburger, .no-print{display:none !important;}
+  .app, .main{margin:0 !important;}
+  .page-content{padding:0 !important;max-width:none !important;}
+  body{background:#fff !important;}
+  .lb-section{break-inside:avoid;}
+}
+
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--moss-dark);color:#f2efe4;padding:10px 20px;border-radius:999px;font-size:13px;font-weight:600;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:80;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
@@ -327,7 +350,7 @@ const NAV = [
   { group:"Utama", items:[ {id:"sampul", label:"Sampul"}, {id:"dashboard", label:"Dashboard"} ] },
   { group:"Transaksi", items:[ {id:"pemasukan", label:"Kas Masuk"}, {id:"pengeluaran", label:"Kas Keluar"} ] },
   { group:"Kantong Kas", items:[ {id:"kantong", label:"Saldo Kantong"}, {id:"alokasi", label:"Pengaturan Alokasi"} ] },
-  { group:"Laporan", items:[ {id:"riwayat", label:"Riwayat Harian"}, {id:"rekap-bulanan", label:"Rekap Bulanan"}, {id:"rekap-tahunan", label:"Rekap Tahunan"}, {id:"analisis", label:"Analisis Keuangan"} ] },
+  { group:"Laporan", items:[ {id:"riwayat", label:"Riwayat Harian"}, {id:"rekap-bulanan", label:"Rekap Bulanan"}, {id:"rekap-tahunan", label:"Rekap Tahunan"}, {id:"analisis", label:"Analisis Keuangan"}, {id:"laporan-bulanan", label:"Laporan Bulanan"} ] },
   { group:"Target Omzet", items:[ {id:"target-bonus", label:"Target & Bonus"} ] },
   { group:"Lainnya", items:[ {id:"pengaturan", label:"Pengaturan Unit"} ] }
 ];
@@ -343,6 +366,7 @@ const PAGE_META = {
   "rekap-tahunan":["Rekap Tahunan","Rekap kas masuk & pengeluaran per tahun, per unit"],
   "analisis":["Analisis Keuangan","Analisis kondisi keuangan per unit berdasarkan kantong kas"],
   "target-bonus":["Target & Bonus","Target omzet bulanan dan bonus karyawan per unit"],
+  "laporan-bulanan":["Laporan Bulanan","Ringkasan lengkap keuangan & kepegawaian, siap print"],
   "pengaturan":["Pengaturan Unit","Kelola nama unit usaha"]
 };
 
@@ -362,7 +386,8 @@ const sheetsConfigured = true;
 
 const SHEET_UNIT="Unit", SHEET_ALOKASI="Alokasi Kantong", SHEET_RIWAYAT_ALOKASI="Riwayat Alokasi",
       SHEET_KAS_MASUK="Kas Masuk", SHEET_PEMASUKAN_LAIN="Pemasukan Lain", SHEET_PENGELUARAN="Pengeluaran",
-      SHEET_SALDO_AWAL="Saldo Awal", SHEET_TUTUP_BUKU="Tutup Buku", SHEET_TARGET_OMZET="Target Omzet";
+      SHEET_SALDO_AWAL="Saldo Awal", SHEET_TUTUP_BUKU="Tutup Buku", SHEET_TARGET_OMZET="Target Omzet",
+      SHEET_KARYAWAN_LB="Karyawan", SHEET_GAJI_LB="Gaji", SHEET_BONUS_LB="Bonus", SHEET_PLAFON_GAJI_LB="Plafon Gaji";
 const HDR_UNIT=["Kode Internal","Nama Unit"];
 const HDR_ALOKASI=["Unit","Kantong Stok %","Kantong Operasional %","Kantong Investasi %","Kantong Dana Aman %","Kantong Profit %"];
 const HDR_RIWAYAT_ALOKASI=["Tanggal Ubah","Unit","Stok %","Operasional %","Investasi %","Dana Aman %","Profit %"];
@@ -1001,7 +1026,7 @@ function navigateTo(id){
   const renderers={
     "sampul":renderSampul,"dashboard":renderDashboard,"pemasukan":renderPemasukan,"pengeluaran":renderPengeluaran,
     "kantong":renderKantong,"alokasi":renderAlokasi,"riwayat":renderRiwayat,"rekap-bulanan":renderRekapBulanan,
-    "rekap-tahunan":renderRekapTahunan,"analisis":renderAnalisis,"target-bonus":renderTargetBonus,"pengaturan":renderPengaturan
+    "rekap-tahunan":renderRekapTahunan,"analisis":renderAnalisis,"target-bonus":renderTargetBonus,"laporan-bulanan":renderLaporanBulanan,"pengaturan":renderPengaturan
   };
   try{
     (renderers[currentPage]||renderDashboard)(c);
@@ -2053,6 +2078,169 @@ function renderRekapTahunan(c){
 }
 
 /* ================= ANALISIS ================= */
+/* ================= LAPORAN BULANAN ================= */
+let LB_KARYAWAN=[], LB_GAJI=[], LB_BONUS_KARYAWAN=[], LB_PLAFON_GAJI=[], lbDataLoaded=false;
+async function loadLaporanBulananData(){
+  if(lbDataLoaded) return;
+  const [karyawanRows, gajiRows, bonusRows, plafonRows] = await Promise.all([
+    sheetsGetAll(SHEET_KARYAWAN_LB), sheetsGetAll(SHEET_GAJI_LB), sheetsGetAll(SHEET_BONUS_LB), sheetsGetAll(SHEET_PLAFON_GAJI_LB)
+  ]);
+  LB_KARYAWAN = (karyawanRows||[]).map(r=>({
+    nama:r["Nama"]||"", unitLabel:r["Unit"]||"", jabatan:r["Jabatan"]||"",
+    gajiPokok:Number(r["Gaji Pokok"])||0, status:(String(r["Status"]||"aktif").toLowerCase()==="nonaktif"?"nonaktif":"aktif")
+  }));
+  LB_GAJI = (gajiRows||[]).map(r=>({
+    namaKaryawan:r["Karyawan"]||"", bulan:String(r["Bulan"]||"").replace(/^'/,""),
+    jumlah:Number(r["Jumlah"])||0, tunjanganJabatan:Number(r["Tunjangan Jabatan"])||0
+  }));
+  LB_BONUS_KARYAWAN = (bonusRows||[]).map(r=>({
+    namaKaryawan:r["Karyawan"]||"", unitLabel:r["Unit"]||"", bulan:String(r["Bulan"]||"").replace(/^'/,""), jumlah:Number(r["Jumlah"])||0
+  }));
+  LB_PLAFON_GAJI = (plafonRows||[]).map(r=>({ tahun:String(r["Tahun"]||"").replace(/^'/,""), plafon:Number(r["Plafon"])||0 }));
+  lbDataLoaded=true;
+}
+
+function renderLaporanBulanan(c){
+  const now=new Date();
+  const years=yearsPresent();
+  if(!years.includes(String(now.getFullYear()))) years.push(String(now.getFullYear()));
+  const yearOptions=[...new Set(years)].sort((a,b)=>b.localeCompare(a)).map(y=>`<option value="${y}">${y}</option>`).join("");
+  const monthOptions=MONTH_NAMES.map((mn,i)=>`<option value="${i+1}">${mn}</option>`).join("");
+  const unitOptions=`<option value="">Semua Unit</option>`+UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
+
+  c.innerHTML=`
+    <div class="controlbar no-print">
+      <div class="field-inline"><label class="f-label">Tahun</label><select id="lbTahun">${yearOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Bulan</label><select id="lbBulan">${monthOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Unit</label><select id="lbUnit">${unitOptions}</select></div>
+      <button class="btn btn-primary" id="lbPrint" style="align-self:end;">🖨️ Print / Simpan sebagai PDF</button>
+    </div>
+    <div id="lbWrap"><div class="empty-state">Memuat data...</div></div>
+  `;
+  document.getElementById("lbTahun").value=String(now.getFullYear());
+  document.getElementById("lbBulan").value=String(now.getMonth()+1);
+  document.getElementById("lbPrint").addEventListener("click", ()=>window.print());
+  ["lbTahun","lbBulan","lbUnit"].forEach(id=>document.getElementById(id).addEventListener("change", render));
+
+  function aggIncome(from,to,unitKey){
+    let kas=0; const list = unitKey?[unitKey]:UNITS.map(u=>u.key);
+    list.forEach(uk=>{ kas+=unitIncomeInRange(uk,from,to).kas; }); return kas;
+  }
+  function aggExpense(from,to,unitKey){
+    let total=0; const byKategori={}; const list=unitKey?[unitKey]:UNITS.map(u=>u.key);
+    PENGELUARAN.forEach(ex=>{
+      if(!list.includes(ex.unitKey)) return;
+      if(ex.date<from||ex.date>to) return;
+      total+=ex.jumlah; byKategori[ex.kategori]=(byKategori[ex.kategori]||0)+ex.jumlah;
+    });
+    return {total, byKategori};
+  }
+  function aggPocketBalances(unitKey, asOfDate){
+    const bal={stok:0,operasional:0,investasi:0,dana_aman:0,profit:0};
+    const list=unitKey?[unitKey]:UNITS.map(u=>u.key);
+    list.forEach(uk=>{ const b=pocketBalancesAsOf(uk,asOfDate); POCKET_DEFS.forEach(p=>{ bal[p.key]+=b[p.key]; }); });
+    return bal;
+  }
+
+  async function render(){
+    document.getElementById("lbWrap").innerHTML=`<div class="empty-state">Memuat data...</div>`;
+    try{ await loadLaporanBulananData(); }catch(e){ console.error(e); }
+
+    const year=parseInt(document.getElementById("lbTahun").value,10);
+    const m=parseInt(document.getElementById("lbBulan").value,10);
+    const unitKey=document.getElementById("lbUnit").value;
+    const ym=`${year}-${String(m).padStart(2,"0")}`;
+    const {from,to}=monthRange(year,m);
+    let py=year, pm=m-1; if(pm===0){pm=12;py=year-1;}
+    const {from:pFrom,to:pTo}=monthRange(py,pm);
+
+    const kasMasuk=aggIncome(from,to,unitKey);
+    const kasMasukLalu=aggIncome(pFrom,pTo,unitKey);
+    const exp=aggExpense(from,to,unitKey);
+    const expLalu=aggExpense(pFrom,pTo,unitKey).total;
+    const saldoBersih=kasMasuk-exp.total;
+    const diffMasuk = kasMasukLalu>0 ? ((kasMasuk-kasMasukLalu)/kasMasukLalu*100) : (kasMasuk>0?100:0);
+    const diffKeluar = expLalu>0 ? ((exp.total-expLalu)/expLalu*100) : (exp.total>0?100:0);
+
+    const unitList = unitKey ? UNITS.filter(u=>u.key===unitKey) : UNITS;
+    const targetRows = unitList.map(u=>{
+      const target=(TARGET_OMZET[u.key]&&TARGET_OMZET[u.key][ym])||0;
+      const realisasi=aggIncome(from,to,u.key);
+      const b=computeBonus(realisasi,target);
+      return { unit:u.label, target, realisasi, pct:b.pct, bonus:b.bonusAmount };
+    });
+
+    const bal=aggPocketBalances(unitKey, to);
+
+    const kategoriRows = Object.keys(exp.byKategori).map(k=>({ label:kategoriPengeluaranLabel(k), jumlah:exp.byKategori[k] })).sort((a,b)=>b.jumlah-a.jumlah);
+
+    // Kepegawaian
+    const unitLabelSet = unitKey ? new Set([unitLabel(unitKey)]) : null;
+    const karyawanAktif = LB_KARYAWAN.filter(k=>k.status==="aktif" && (!unitLabelSet || unitLabelSet.has(k.unitLabel)));
+    const namaAktifSet = new Set(karyawanAktif.map(k=>k.nama));
+    const totalGajiBulan = LB_GAJI.filter(g=>g.bulan===ym && namaAktifSet.has(g.namaKaryawan)).reduce((s,g)=>s+g.jumlah+ (g.tunjanganJabatan||0),0);
+    const totalBonusBulan = LB_BONUS_KARYAWAN.filter(b=>b.bulan===ym && (!unitLabelSet || unitLabelSet.has(b.unitLabel))).reduce((s,b)=>s+b.jumlah,0);
+    const totalKepegawaian = totalGajiBulan + totalBonusBulan;
+    const plafonTahunIni = LB_PLAFON_GAJI.find(p=>p.tahun===String(year));
+
+    document.getElementById("lbWrap").innerHTML = `
+      <div class="lb-header">
+        <div class="lb-eyebrow">LORONGSATU21</div>
+        <h2>Laporan Bulanan — ${MONTH_NAMES[m-1]} ${year}</h2>
+        <div class="lb-sub">${unitKey?unitLabel(unitKey):"Semua Unit"} · Dicetak ${new Date().toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"})}</div>
+      </div>
+
+      <div class="lb-section">
+        <div class="lb-section-title">1. Ringkasan Keuangan</div>
+        <div class="lb-grid">
+          <div class="lb-stat"><div class="lb-label">Total Kas Masuk</div><div class="lb-value">${formatRupiah(kasMasuk)}</div><div class="lb-note">${diffMasuk>=0?"▲":"▼"} ${Math.abs(diffMasuk).toFixed(1)}% dari bulan lalu</div></div>
+          <div class="lb-stat"><div class="lb-label">Total Kas Keluar</div><div class="lb-value">${formatRupiah(exp.total)}</div><div class="lb-note">${diffKeluar>=0?"▲":"▼"} ${Math.abs(diffKeluar).toFixed(1)}% dari bulan lalu</div></div>
+          <div class="lb-stat"><div class="lb-label">Saldo Bersih</div><div class="lb-value" style="${saldoBersih<0?'color:var(--danger);':''}">${formatRupiah(saldoBersih)}</div><div class="lb-note">Masuk − Keluar</div></div>
+        </div>
+      </div>
+
+      <div class="lb-section">
+        <div class="lb-section-title">2. Pencapaian Target &amp; Bonus</div>
+        <table style="width:100%;font-size:12.5px;border-collapse:collapse;">
+          <thead><tr style="border-bottom:1px solid var(--line);"><th style="text-align:left;padding:5px 0;">Unit</th><th style="text-align:right;">Target</th><th style="text-align:right;">Realisasi</th><th style="text-align:right;">Capaian</th><th style="text-align:right;">Bonus</th></tr></thead>
+          <tbody>${targetRows.map(r=>`<tr style="border-bottom:1px solid #f1eee2;"><td style="text-align:left;padding:5px 0;">${escapeHtml(r.unit)}</td><td style="text-align:right;">${formatRupiah(r.target)}</td><td style="text-align:right;">${formatRupiah(r.realisasi)}</td><td style="text-align:right;">${r.pct!==null?r.pct.toFixed(1)+"%":"-"}</td><td style="text-align:right;">${formatRupiah(r.bonus)}</td></tr>`).join("")}</tbody>
+        </table>
+      </div>
+
+      <div class="lb-section">
+        <div class="lb-section-title">3. Saldo Kantong (per akhir bulan)</div>
+        <div class="lb-grid">
+          ${POCKET_DEFS.map(p=>`<div class="lb-stat"><div class="lb-label">${p.label}</div><div class="lb-value">${formatRupiah(bal[p.key])}</div></div>`).join("")}
+        </div>
+      </div>
+
+      <div class="lb-section">
+        <div class="lb-section-title">4. Rincian Pengeluaran per Kategori</div>
+        ${kategoriRows.length ? `<table style="width:100%;font-size:12.5px;border-collapse:collapse;">
+          <thead><tr style="border-bottom:1px solid var(--line);"><th style="text-align:left;padding:5px 0;">Kategori</th><th style="text-align:right;">Jumlah</th><th style="text-align:right;">Porsi</th></tr></thead>
+          <tbody>${kategoriRows.map(r=>`<tr style="border-bottom:1px solid #f1eee2;"><td style="text-align:left;padding:5px 0;">${escapeHtml(r.label)}</td><td style="text-align:right;">${formatRupiah(r.jumlah)}</td><td style="text-align:right;">${exp.total>0?(r.jumlah/exp.total*100).toFixed(1):"0.0"}%</td></tr>`).join("")}</tbody>
+        </table>` : `<div class="empty-state">Tidak ada pengeluaran bulan ini.</div>`}
+      </div>
+
+      <div class="lb-section">
+        <div class="lb-section-title">5. Ringkasan Kepegawaian</div>
+        <div class="lb-grid">
+          <div class="lb-stat"><div class="lb-label">Gaji + Tunjangan Dibayarkan</div><div class="lb-value">${formatRupiah(totalGajiBulan)}</div></div>
+          <div class="lb-stat"><div class="lb-label">Bonus Dibayarkan</div><div class="lb-value">${formatRupiah(totalBonusBulan)}</div></div>
+          <div class="lb-stat"><div class="lb-label">Karyawan Aktif</div><div class="lb-value">${karyawanAktif.length} orang</div></div>
+        </div>
+        ${plafonTahunIni ? `<div style="font-size:11.5px;color:var(--muted);margin-top:8px;">Dibanding Plafon Gaji ${year} (${formatRupiah(plafonTahunIni.plafon)}): total kepegawaian bulan ini <b style="color:${totalKepegawaian>plafonTahunIni.plafon?'var(--danger)':'var(--moss-dark)'};">${formatRupiah(totalKepegawaian)}</b> (${totalKepegawaian>plafonTahunIni.plafon?'melebihi':'masih di bawah'} plafon)</div>` : `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Plafon Gaji tahun ${year} belum dicatat di aplikasi Karyawan.</div>`}
+      </div>
+
+      <div class="lb-section">
+        <div class="lb-section-title">6. Catatan Khusus</div>
+        <div class="lb-notes-box">&nbsp;</div>
+      </div>
+    `;
+  }
+  render();
+}
+
 function renderAnalisis(c){
   const unitOptions = `<option value="">Semua Unit</option>` + UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
   c.innerHTML = `
