@@ -1379,9 +1379,24 @@ function renderPengeluaran(c){
       </div>
     </div>
     <div class="section-title" style="margin-top:22px;">Riwayat Pengeluaran</div>
+    <div class="controlbar" style="margin-bottom:12px;">
+      <div class="field-inline"><label class="f-label">Tahun</label><select id="pgFilterTahun"><option value="">Semua</option></select></div>
+      <div class="field-inline"><label class="f-label">Bulan</label><select id="pgFilterBulan"><option value="">Semua</option>${MONTH_NAMES.map((m,i)=>`<option value="${i+1}">${m}</option>`).join("")}</select></div>
+      <div class="field-inline"><label class="f-label">Unit</label><select id="pgFilterUnit"><option value="">Semua Unit</option>${UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("")}</select></div>
+      <div class="field-inline"><label class="f-label">Kantong</label><select id="pgFilterKantong"><option value="">Semua Kantong</option>${pocketOptions}</select></div>
+      <div class="field-inline"><label class="f-label">Kategori</label><select id="pgFilterKategori"><option value="">Semua Kategori</option>${kategoriOptions}</select></div>
+      <button class="btn btn-ghost btn-sm" id="pgFilterReset" style="align-self:end;">Reset Filter</button>
+    </div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Tanggal</th><th>Unit</th><th>Kantong</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th><th></th></tr></thead>
       <tbody id="pgHistBody"></tbody>
+    </table></div>
+
+    <div class="section-title" style="margin-top:26px;">Riwayat Transaksi <span style="font-weight:400;color:var(--muted);font-size:12px;">(Kas Masuk & Kas Keluar digabung)</span></div>
+    <div style="font-size:11.5px;color:var(--muted);margin:-10px 0 12px;">Memakai filter Tahun/Bulan/Unit yang sama di atas.</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tanggal</th><th>Unit</th><th>Jenis</th><th>Keterangan</th><th>Masuk</th><th>Keluar</th></tr></thead>
+      <tbody id="trxHistBody"></tbody>
     </table></div>
   `;
   document.getElementById("pgTanggal").value=todayStr();
@@ -1407,7 +1422,18 @@ function renderPengeluaran(c){
       : `Pilih unit tertentu untuk mencatat pengeluaran (wajib, tidak bisa "Semua Unit")`;
   }
   function renderHist(){
-    const rows = [...PENGELUARAN].sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt.localeCompare(a.createdAt));
+    const fTahun=document.getElementById("pgFilterTahun").value;
+    const fBulan=document.getElementById("pgFilterBulan").value;
+    const fUnit=document.getElementById("pgFilterUnit").value;
+    const fKantong=document.getElementById("pgFilterKantong").value;
+    const fKategori=document.getElementById("pgFilterKategori").value;
+    let rows = [...PENGELUARAN];
+    if(fTahun) rows=rows.filter(ex=>ex.date.slice(0,4)===fTahun);
+    if(fBulan) rows=rows.filter(ex=>String(parseInt(ex.date.slice(5,7),10))===fBulan);
+    if(fUnit) rows=rows.filter(ex=>ex.unitKey===fUnit);
+    if(fKantong) rows=rows.filter(ex=>ex.kantong===fKantong);
+    if(fKategori) rows=rows.filter(ex=>ex.kategori===fKategori);
+    rows.sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt.localeCompare(a.createdAt));
     document.getElementById("pgHistBody").innerHTML = rows.length ? rows.map(ex=>`
       <tr>
         <td class="rowdate">${dateLabel(ex.date)}</td>
@@ -1417,17 +1443,74 @@ function renderPengeluaran(c){
         <td style="text-align:left;">${escapeHtml(ex.keterangan||"-")}</td>
         <td class="neg">${formatRupiah(ex.jumlah)}</td>
         <td><button class="btn btn-danger btn-sm" data-del="${ex.id}">Hapus</button></td>
-      </tr>`).join("") : `<tr><td colspan="7" class="empty-state">Belum ada pengeluaran tercatat.</td></tr>`;
+      </tr>`).join("") : `<tr><td colspan="7" class="empty-state">Tidak ada pengeluaran yang cocok dengan filter ini.</td></tr>`;
     document.querySelectorAll("[data-del]").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         if(await customConfirm("Hapus catatan pengeluaran ini?", "Ya, Hapus")){
           PENGELUARAN=PENGELUARAN.filter(x=>x.id!==btn.getAttribute("data-del"));
           await savePengeluaran();
-          refreshBalancePanel(); renderHist(); showToast("Pengeluaran dihapus");
+          refreshBalancePanel(); renderHist(); renderTrxHist(); showToast("Pengeluaran dihapus");
         }
       });
     });
   }
+
+  function renderTrxHist(){
+    const fTahun=document.getElementById("pgFilterTahun").value;
+    const fBulan=document.getElementById("pgFilterBulan").value;
+    const fUnit=document.getElementById("pgFilterUnit").value;
+
+    const trx=[];
+    // Kas Masuk
+    Object.keys(PEMASUKAN).forEach(date=>{
+      const entry=PEMASUKAN[date];
+      if(!entry || !entry.units) return;
+      UNITS.forEach(u=>{
+        const d=entry.units[u.key]; if(!d) return;
+        const lainSum=(d.lainLain||[]).reduce((s,l)=>s+(Number(l.jumlah)||0),0);
+        const total=(d.kasPagi||0)+(d.kasSore||0)+(d.transferPagi||0)+(d.transferSore||0)+lainSum;
+        if(total<=0) return;
+        trx.push({ date, unitKey:u.key, jenis:"masuk", masuk:total, keluar:0, keterangan:"Kas Masuk Harian" });
+      });
+    });
+    // Kas Keluar
+    PENGELUARAN.forEach(ex=>{
+      trx.push({ date:ex.date, unitKey:ex.unitKey, jenis:"keluar", masuk:0, keluar:ex.jumlah, keterangan:`${kategoriPengeluaranLabel(ex.kategori)}${ex.keterangan?" — "+ex.keterangan:""}` });
+    });
+
+    let rows=trx;
+    if(fTahun) rows=rows.filter(t=>t.date.slice(0,4)===fTahun);
+    if(fBulan) rows=rows.filter(t=>String(parseInt(t.date.slice(5,7),10))===fBulan);
+    if(fUnit) rows=rows.filter(t=>t.unitKey===fUnit);
+    rows.sort((a,b)=>b.date.localeCompare(a.date));
+
+    document.getElementById("trxHistBody").innerHTML = rows.length ? rows.map(t=>`
+      <tr>
+        <td class="rowdate">${dateLabel(t.date)}</td>
+        <td>${escapeHtml(unitLabel(t.unitKey))}</td>
+        <td><span class="pill ${t.jenis==='masuk'?'aktif':'nonaktif'}" style="font-size:10.5px;">${t.jenis==='masuk'?'Masuk':'Keluar'}</span></td>
+        <td style="text-align:left;">${escapeHtml(t.keterangan)}</td>
+        <td class="pos">${t.masuk?formatRupiah(t.masuk):"-"}</td>
+        <td class="neg">${t.keluar?formatRupiah(t.keluar):"-"}</td>
+      </tr>`).join("") : `<tr><td colspan="6" class="empty-state">Tidak ada transaksi yang cocok dengan filter ini.</td></tr>`;
+  }
+
+  function populateFilterYears(){
+    const years=new Set();
+    PENGELUARAN.forEach(ex=>years.add(ex.date.slice(0,4)));
+    Object.keys(PEMASUKAN).forEach(date=>years.add(date.slice(0,4)));
+    const sorted=[...years].sort((a,b)=>b.localeCompare(a));
+    const sel=document.getElementById("pgFilterTahun");
+    sel.innerHTML = `<option value="">Semua</option>` + sorted.map(y=>`<option value="${y}">${y}</option>`).join("");
+  }
+  populateFilterYears();
+  ["pgFilterTahun","pgFilterBulan","pgFilterUnit","pgFilterKantong","pgFilterKategori"].forEach(id=>{
+    document.getElementById(id).addEventListener("change", ()=>{ renderHist(); renderTrxHist(); });
+  });
+  document.getElementById("pgFilterReset").addEventListener("click", ()=>{
+    ["pgFilterTahun","pgFilterBulan","pgFilterUnit","pgFilterKantong","pgFilterKategori"].forEach(id=>{ document.getElementById(id).value=""; });
+    renderHist(); renderTrxHist();
+  });
   document.getElementById("pgUnit").addEventListener("change", refreshBalancePanel);
   document.getElementById("pgKantong").addEventListener("change", refreshBalancePanel);
   document.getElementById("pgSimpan").addEventListener("click", async ()=>{
@@ -1448,11 +1531,11 @@ function renderPengeluaran(c){
     PENGELUARAN.push({ id:uid(), date, unitKey, kantong, kategori, jumlah, keterangan, createdAt:new Date().toISOString() });
     const ok=await savePengeluaran();
     document.getElementById("pgJumlah").value=""; document.getElementById("pgKeterangan").value="";
-    refreshBalancePanel(); renderHist();
+    refreshBalancePanel(); renderHist(); renderTrxHist();
     showToast(ok?"Pengeluaran tersimpan":"Gagal tersimpan ke Sheets — coba lagi, atau login ulang kalau berulang");
   });
 
-  refreshBalancePanel(); renderHist();
+  refreshBalancePanel(); renderHist(); renderTrxHist();
 }
 
 /* ================= KANTONG KAS ================= */
