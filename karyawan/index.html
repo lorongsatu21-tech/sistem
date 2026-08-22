@@ -1625,14 +1625,19 @@ function renderGaji(c){
 
 /* ================= BONUS ================= */
 function renderBonus(c){
-  const unitOptions=UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("");
   const now=new Date();
   const monthOptions=MONTH_NAMES.map((mn,i)=>`<option value="${i+1}">${mn}</option>`).join("");
   const years=[...new Set([now.getFullYear(), now.getFullYear()-1])].sort((a,b)=>b-a);
   const yearOptions=years.map(y=>`<option value="${y}">${y}</option>`).join("");
   c.innerHTML=`
-    <div class="controlbar">
-      <div class="field-inline"><label class="f-label">Unit</label><select id="bnUnit">${unitOptions}</select></div>
+    <div class="controlbar" style="align-items:flex-end;">
+      <div class="field-inline">
+        <label class="f-label">Unit</label>
+        <select id="bnUnit" style="display:none;">${UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("")}</select>
+        <div id="bnUnitPills" style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${UNITS.map((u,i)=>`<button type="button" class="unit-pill" data-unit-pill="${u.key}" style="border:2px solid ${unitColor(u.key)};color:${i===0?'#fff':unitColor(u.key)};background:${i===0?unitColor(u.key):'transparent'};padding:6px 14px;border-radius:999px;font-size:12.5px;font-weight:600;cursor:pointer;transition:.15s;">${escapeHtml(u.label)}</button>`).join("")}
+        </div>
+      </div>
       <div class="field-inline"><label class="f-label">Tahun</label><select id="bnTahun">${yearOptions}</select></div>
       <div class="field-inline"><label class="f-label">Bulan</label><select id="bnBulan">${monthOptions}</select></div>
     </div>
@@ -1659,7 +1664,7 @@ function renderBonus(c){
     <button class="btn btn-primary" id="bnSimpan" style="margin-left:8px;">Simpan Pembayaran Bonus</button>
     <span id="bnStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
 
-    <div class="section-title" style="margin-top:26px;">Riwayat Pembayaran Bonus</div>
+    <div class="section-title" style="margin-top:26px;">Riwayat Pembayaran Bonus <span style="font-weight:400;color:var(--muted);font-size:12px;">(semua unit, unit terpilih disorot)</span></div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Unit</th><th>Bulan</th><th>Jumlah</th><th></th></tr></thead>
       <tbody id="bnHistBody"></tbody>
@@ -1729,6 +1734,19 @@ function renderBonus(c){
     });
   }
   function refreshAll(){ renderPool(); renderKaryawanBonusForm(); renderHist(); }
+  function selectUnitPill(unitKey){
+    document.getElementById("bnUnit").value=unitKey;
+    document.querySelectorAll("[data-unit-pill]").forEach(btn=>{
+      const uk=btn.getAttribute("data-unit-pill"); const col=unitColor(uk);
+      const active = uk===unitKey;
+      btn.style.background = active ? col : "transparent";
+      btn.style.color = active ? "#fff" : col;
+    });
+    refreshAll();
+  }
+  document.querySelectorAll("[data-unit-pill]").forEach(btn=>{
+    btn.addEventListener("click", ()=>selectUnitPill(btn.getAttribute("data-unit-pill")));
+  });
   document.getElementById("bnUnit").addEventListener("change", refreshAll);
   document.getElementById("bnTahun").addEventListener("change", refreshAll);
   document.getElementById("bnBulan").addEventListener("change", refreshAll);
