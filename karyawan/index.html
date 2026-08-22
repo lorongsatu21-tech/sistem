@@ -1680,7 +1680,8 @@ function renderBonus(c){
     const info=computeBonusPool(unitKey,year,m);
     document.getElementById("bnPoolCard").innerHTML = info.target<=0
       ? `<div style="font-size:12.5px;color:var(--muted);">Belum ada target omzet untuk ${unitLabel(unitKey)} bulan ${MONTH_NAMES[m-1]} ${year} — atur target lewat aplikasi Keuangan (halaman Target & Bonus) dulu.</div>`
-      : `<div class="grid3">
+      : `<div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:6px;">Pool untuk: <span style="color:${unitColor(unitKey)};">${escapeHtml(unitLabel(unitKey))}</span></div>
+        <div class="grid3">
           <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Target</div><div style="font-weight:700;">${formatRupiah(info.target)}</div></div>
           <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Realisasi</div><div style="font-weight:700;">${formatRupiah(info.realisasi)}</div></div>
           <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Pencapaian</div><div style="font-weight:700;">${info.pct.toFixed(1)}%</div></div>
@@ -1688,19 +1689,46 @@ function renderBonus(c){
         <div style="margin-top:10px;font-size:13px;font-weight:700;color:var(--moss-dark);">Total Bonus Pool (${info.bonusPct}% dari omzet): ${formatRupiah(info.bonusPool)}</div>`;
     return info;
   }
+  function currentBulan(){
+    const year=document.getElementById("bnTahun").value;
+    const m=String(document.getElementById("bnBulan").value).padStart(2,"0");
+    return `${year}-${m}`;
+  }
   function renderKaryawanBonusForm(){
-    const unitKey=document.getElementById("bnUnit").value;
-    const daftar=KARYAWAN.filter(k=>k.status==="aktif" && k.unitKey===unitKey).sort((a,b)=>a.nama.localeCompare(b.nama));
-    document.getElementById("bnBody").innerHTML = daftar.length ? daftar.map(k=>`
-      <tr data-karyawan="${k.id}">
-        <td style="text-align:left;">${escapeHtml(k.nama)}</td>
+    const bulan=currentBulan();
+    const daftar=[...KARYAWAN].filter(k=>k.status==="aktif").sort((a,b)=>{
+      const ua=unitLabel(a.unitKey), ub=unitLabel(b.unitKey);
+      return ua.localeCompare(ub) || a.nama.localeCompare(b.nama);
+    });
+    document.getElementById("bnBody").innerHTML = daftar.length ? daftar.map(k=>{
+      const existing=BONUS.find(b=>b.karyawanId===k.id && b.bulan===bulan && b.unitKey===k.unitKey);
+      const val=existing?existing.jumlah:0;
+      return `<tr data-karyawan="${k.id}" data-unit-key="${k.unitKey}">
+        <td style="text-align:left;">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${unitColor(k.unitKey)};margin-right:6px;vertical-align:middle;"></span>${escapeHtml(k.nama)}
+          <div style="font-size:10px;color:var(--muted);margin-left:14px;">${escapeHtml(unitLabel(k.unitKey))}</div>
+        </td>
         <td>${escapeHtml(k.levelKompetensi||"-")}</td>
         <td>${escapeHtml(masaKerjaText(k.tanggalMulaiKerja))}</td>
-        <td><div class="input-money" style="max-width:150px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-bonus-input="${k.id}" placeholder="0"></div></td>
-      </tr>`).join("") : `<tr><td colspan="4" class="empty-state">Belum ada karyawan aktif di unit ini.</td></tr>`;
-    document.getElementById("bnFoot").innerHTML=`<td colspan="3">Total Dibagikan</td><td>Rp 0</td>`;
+        <td><div class="input-money" style="max-width:150px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-bonus-input="${k.id}" value="${val?val.toLocaleString('id-ID'):''}" placeholder="0"></div></td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="4" class="empty-state">Belum ada karyawan aktif.</td></tr>`;
+    document.getElementById("bnFoot").innerHTML=`<td colspan="3">Total Dibagikan (semua unit)</td><td>Rp 0</td>`;
     document.querySelectorAll("[data-bonus-input]").forEach(inp=>{
       inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalcBonusTotal(); });
+    });
+    highlightBonusRows(document.getElementById("bnUnit").value);
+    recalcBonusTotal();
+  }
+  function highlightBonusRows(selectedUnitKey){
+    document.querySelectorAll("#bnBody tr[data-unit-key]").forEach(tr=>{
+      const uk=tr.getAttribute("data-unit-key");
+      if(uk===selectedUnitKey){
+        const col=unitColor(uk);
+        tr.style.background=col+"1c"; tr.style.borderLeft=`3px solid ${col}`;
+      } else {
+        tr.style.background=""; tr.style.borderLeft="";
+      }
     });
   }
   function recalcBonusTotal(){
@@ -1742,7 +1770,9 @@ function renderBonus(c){
       btn.style.background = active ? col : "transparent";
       btn.style.color = active ? "#fff" : col;
     });
-    refreshAll();
+    renderPool();
+    highlightBonusRows(unitKey);
+    renderHist();
   }
   document.querySelectorAll("[data-unit-pill]").forEach(btn=>{
     btn.addEventListener("click", ()=>selectUnitPill(btn.getAttribute("data-unit-pill")));
@@ -1786,25 +1816,25 @@ function renderBonus(c){
       if(inp) inp.value = bagian?bagian.toLocaleString("id-ID"):"";
     });
     recalcBonusTotal();
-    showToast(`Dibagi otomatis (${wLevel*100}% Level, ${wMasa*100}% Masa Kerja) ke ${daftar.length} karyawan`);
+    showToast(`Dibagi otomatis (${wLevel*100}% Level, ${wMasa*100}% Masa Kerja) ke ${daftar.length} karyawan ${unitLabel(unitKey)}`);
   });
   document.getElementById("bnBagiRata").addEventListener("click", ()=>{
     const info=renderPool();
-    const inputs=document.querySelectorAll("[data-bonus-input]");
+    const unitKey=document.getElementById("bnUnit").value;
+    const inputs=[...document.querySelectorAll(`#bnBody tr[data-unit-key="${unitKey}"] [data-bonus-input]`)];
     if(!inputs.length){ showToast("Belum ada karyawan aktif di unit ini"); return; }
     const bagian=Math.floor(info.bonusPool/inputs.length);
     inputs.forEach(inp=>{ inp.value=bagian?bagian.toLocaleString("id-ID"):""; });
     recalcBonusTotal();
-    showToast(`Dibagi rata ke ${inputs.length} karyawan`);
+    showToast(`Dibagi rata ke ${inputs.length} karyawan ${unitLabel(unitKey)}`);
   });
   document.getElementById("bnSimpan").addEventListener("click", async ()=>{
-    const unitKey=document.getElementById("bnUnit").value;
-    const year=document.getElementById("bnTahun").value;
-    const m=String(document.getElementById("bnBulan").value).padStart(2,"0");
-    const bulan=`${year}-${m}`;
+    const bulan=currentBulan();
     let count=0;
-    document.querySelectorAll("[data-bonus-input]").forEach(inp=>{
-      const karyawanId=inp.getAttribute("data-bonus-input");
+    document.querySelectorAll("#bnBody tr[data-karyawan]").forEach(tr=>{
+      const karyawanId=tr.getAttribute("data-karyawan");
+      const unitKey=tr.getAttribute("data-unit-key");
+      const inp=tr.querySelector("[data-bonus-input]");
       const jumlah=parseMoneyInput(inp.value);
       if(!jumlah) return;
       const existing=BONUS.find(b=>b.karyawanId===karyawanId && b.bulan===bulan && b.unitKey===unitKey);
