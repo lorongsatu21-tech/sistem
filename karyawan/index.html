@@ -241,7 +241,7 @@ const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
 const SHEET_UNIT="Unit", SHEET_KAS_MASUK="Kas Masuk", SHEET_TARGET_OMZET="Target Omzet";
 const SHEET_KARYAWAN="Karyawan", SHEET_GAJI="Gaji", SHEET_BONUS="Bonus", SHEET_TARIF_JABATAN="Tarif Jabatan", SHEET_PLAFON_GAJI="Plafon Gaji";
-const HDR_KARYAWAN=["ID Karyawan","Nama","Unit","Jabatan","Gaji Pokok","Status","No HP",
+const HDR_KARYAWAN=["ID Karyawan","Nama","Unit","Jabatan","Gaji Pokok","Gaji Awal","Status","No HP",
   "NIK","Tempat Lahir","Tanggal Lahir","Jenis Kelamin","Alamat","Akun Medsos",
   "Tanggal Mulai Kerja","Jenis Karyawan","Level Kompetensi",
   "Nama Orang Tua","Jumlah Saudara","Kontak Darurat Nama","Kontak Darurat HP","Kontak Darurat Hubungan",
@@ -413,6 +413,18 @@ function masaKerjaBulanCount(tanggalMulai){
   if(now.getDate()<mulai.getDate()) bulan--;
   return Math.max(0, bulan);
 }
+// Pola kenaikan gaji tahunan: tahun ke-1,2 naik 100; tahun ke-3 naik 200; berulang tiap 3 tahun
+function kenaikanPolaTahunKe(tahunKe){ return (tahunKe % 3 === 0) ? 200 : 100; }
+function totalKenaikanPola(tahunPenuh){
+  let total=0; for(let t=1;t<=tahunPenuh;t++){ total+=kenaikanPolaTahunKe(t); }
+  return total;
+}
+function gajiPokokSesuaiPola(k){
+  const gajiAwal = k.gajiAwal||k.gajiPokok||0;
+  const bulanKerja = masaKerjaBulanCount(k.tanggalMulaiKerja);
+  const tahunPenuh = Math.floor(bulanKerja/12);
+  return gajiAwal + totalKenaikanPola(tahunPenuh);
+}
 function masaKerjaText(tanggalMulai){
   if(!tanggalMulai) return "-";
   const mulai=new Date(tanggalMulai+"T00:00:00"); const now=new Date();
@@ -476,7 +488,7 @@ const KARYAWAN_DETAIL_FIELDS=["nik","tempatLahir","tanggalLahir","jenisKelamin",
 
 function rowsFromKaryawan(){
   return KARYAWAN.map((k,i)=>({
-    "ID Karyawan":k.idKaryawan||"", "Nama":k.nama, "Unit":unitLabel(k.unitKey), "Jabatan":k.jabatan||"", "Gaji Pokok":k.gajiPokok||0, "Status":k.status||"aktif", "No HP":k.noHp||"",
+    "ID Karyawan":k.idKaryawan||"", "Nama":k.nama, "Unit":unitLabel(k.unitKey), "Jabatan":k.jabatan||"", "Gaji Pokok":k.gajiPokok||0, "Gaji Awal":k.gajiAwal||k.gajiPokok||0, "Status":k.status||"aktif", "No HP":k.noHp||"",
     "NIK":k.nik||"", "Tempat Lahir":k.tempatLahir||"", "Tanggal Lahir":k.tanggalLahir?asText(k.tanggalLahir):"", "Jenis Kelamin":k.jenisKelamin||"", "Alamat":k.alamat||"", "Akun Medsos":k.medsos||"",
     "Tanggal Mulai Kerja":k.tanggalMulaiKerja?asText(k.tanggalMulaiKerja):"", "Jenis Karyawan":k.jenisKaryawan||"", "Level Kompetensi":k.levelKompetensi||"",
     "Nama Orang Tua":k.namaOrangTua||"", "Jumlah Saudara":k.jumlahSaudara||"", "Kontak Darurat Nama":k.kontakDaruratNama||"", "Kontak Darurat HP":k.kontakDaruratHp||"", "Kontak Darurat Hubungan":k.kontakDaruratHubungan||"",
@@ -490,7 +502,7 @@ function karyawanFromRows(rows, unitsList){
     const nama=String(r["Nama"]||"").trim(); if(!nama) return null;
     const unitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()]||"";
     return {
-      id:uid(), idKaryawan:String(r["ID Karyawan"]||"").trim(), nama, unitKey, jabatan:r["Jabatan"]||"", gajiPokok:Number(r["Gaji Pokok"])||0, status:(String(r["Status"]||"aktif").toLowerCase()==="nonaktif"?"nonaktif":"aktif"), noHp:r["No HP"]||"",
+      id:uid(), idKaryawan:String(r["ID Karyawan"]||"").trim(), nama, unitKey, jabatan:r["Jabatan"]||"", gajiPokok:Number(r["Gaji Pokok"])||0, gajiAwal:Number(r["Gaji Awal"])||Number(r["Gaji Pokok"])||0, status:(String(r["Status"]||"aktif").toLowerCase()==="nonaktif"?"nonaktif":"aktif"), noHp:r["No HP"]||"",
       nik:r["NIK"]||"", tempatLahir:r["Tempat Lahir"]||"", tanggalLahir:normalizeDateCell(r["Tanggal Lahir"])||"", jenisKelamin:r["Jenis Kelamin"]||"", alamat:r["Alamat"]||"", medsos:r["Akun Medsos"]||"",
       tanggalMulaiKerja:normalizeDateCell(r["Tanggal Mulai Kerja"])||"", jenisKaryawan:r["Jenis Karyawan"]||"", levelKompetensi:r["Level Kompetensi"]||"",
       namaOrangTua:r["Nama Orang Tua"]||"", jumlahSaudara:r["Jumlah Saudara"]||"", kontakDaruratNama:r["Kontak Darurat Nama"]||"", kontakDaruratHp:r["Kontak Darurat HP"]||"", kontakDaruratHubungan:r["Kontak Darurat Hubungan"]||"",
@@ -625,7 +637,7 @@ async function savePlafonGaji(){ return sheetsReplaceAll(SHEET_PLAFON_GAJI, HDR_
 const NAV=[
   { group:"Utama", items:[ {id:"sampul",label:"Sampul"}, {id:"dashboard",label:"Dashboard"} ] },
   { group:"Karyawan", items:[ {id:"daftar",label:"Daftar Karyawan"}, {id:"dokumen",label:"Formulir & Surat"} ] },
-  { group:"Pembayaran", items:[ {id:"gaji",label:"Gaji Bulanan"}, {id:"bonus",label:"Bonus"}, {id:"tarif",label:"Tarif Jabatan"}, {id:"plafon",label:"Plafon Gaji"}, {id:"struk",label:"Struk Gaji"} ] }
+  { group:"Pembayaran", items:[ {id:"gaji",label:"Gaji Bulanan"}, {id:"riwayatgaji",label:"Riwayat Gaji"}, {id:"bonus",label:"Bonus"}, {id:"tarif",label:"Tarif Jabatan"}, {id:"plafon",label:"Plafon Gaji"}, {id:"struk",label:"Struk Gaji"} ] }
 ];
 const PAGE_META={
   "sampul":["Sampul","LORONGSATU21 — Karyawan"],
@@ -633,6 +645,7 @@ const PAGE_META={
   "daftar":["Daftar Karyawan","Kelola data karyawan per unit"],
   "dokumen":["Formulir & Surat","Formulir data karyawan baru dan surat pernyataan, siap diprint"],
   "gaji":["Gaji Bulanan","Catat pembayaran gaji tiap bulan"],
+  "riwayatgaji":["Riwayat Gaji","Gaji awal, pola kenaikan tahunan, dan gaji saat ini per karyawan"],
   "bonus":["Bonus","Bonus karyawan berdasarkan pencapaian target omzet unit"],
   "tarif":["Tarif Jabatan","Urutan jabatan, kelipatan, dan nilai basis tunjangan"],
   "plafon":["Plafon Gaji","Batas total gaji pokok berdasarkan kemampuan usaha di bulan tersepi"],
@@ -666,7 +679,7 @@ function navigateTo(id){
   currentPage=id||"dashboard";
   setActiveNav(currentPage);
   const c=document.getElementById("pageContent");
-  const renderers={ "sampul":renderSampul,"dashboard":renderDashboard,"daftar":renderDaftar,"dokumen":renderDokumen,"gaji":renderGaji,"bonus":renderBonus,"tarif":renderTarifJabatan,"plafon":renderPlafonGaji,"struk":renderStrukGaji };
+  const renderers={ "sampul":renderSampul,"dashboard":renderDashboard,"daftar":renderDaftar,"dokumen":renderDokumen,"gaji":renderGaji,"riwayatgaji":renderRiwayatGaji,"bonus":renderBonus,"tarif":renderTarifJabatan,"plafon":renderPlafonGaji,"struk":renderStrukGaji };
   try{ (renderers[currentPage]||renderDashboard)(c); }
   catch(err){ console.error("Render error",currentPage,err); c.innerHTML=`<div class="empty-state">Terjadi kendala membuka halaman ini.</div>`; }
 }
@@ -733,6 +746,87 @@ function renderDashboard(c){
 
 /* ================= DAFTAR KARYAWAN ================= */
 /* ================= MODAL DETAIL KARYAWAN (data lengkap) ================= */
+function cetakDetailKaryawan(k){
+  const win = window.open('', '_blank');
+  if(!win){ showToast('Popup diblokir browser — izinkan popup untuk mencetak'); return; }
+  const NAVY='#0d2a52', GOLD='#a9843a', GOLDLIGHT='#c9a86a', MUTED='#8a8474', INK='#241f14', LINE='#d8cfb4';
+  function field(label, value){
+    return `<tr><td style="padding:5px 10px 5px 0;font-weight:700;font-size:9.5pt;color:${INK};white-space:nowrap;vertical-align:bottom;">${label}</td><td style="padding:5px 0;font-size:9.5pt;border-bottom:0.6pt solid ${LINE};width:100%;vertical-align:bottom;">${value||'&nbsp;'}</td></tr>`;
+  }
+  function section(title){
+    return `<tr><td colspan="2" style="padding:0;">
+      <table style="width:100%;margin:12px 0 6px;border-collapse:collapse;"><tr>
+        <td style="width:3mm;background:${GOLD};padding:0;"></td>
+        <td style="background:${NAVY};color:#fff;font-weight:700;font-size:10pt;padding:6px 10px;">${title}</td>
+      </tr></table>
+    </td></tr>`;
+  }
+  const tglLahirText = k.tanggalLahir ? k.tanggalLahir : '-';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Data Karyawan - ${escapeHtml(k.nama)}</title>
+  <style>
+    @page{ margin:12mm 16mm; }
+    body{ font-family: Helvetica, Arial, sans-serif; color:${INK}; margin:0; padding:8mm 4mm; }
+    .eyebrow{ font-size:8.5pt; letter-spacing:0.14em; text-transform:uppercase; color:${GOLD}; font-weight:700; }
+    h1{ font-size:15pt; color:${NAVY}; margin:4px 0 2px; }
+    .sub{ font-size:9pt; color:${MUTED}; margin-bottom:4mm; }
+    .rule{ width:34mm; height:0.9mm; background:${GOLD}; margin-bottom:5mm; }
+    table.fields{ width:100%; border-collapse:collapse; }
+    .frame{ border:0.9pt solid ${GOLDLIGHT}; padding:8mm; }
+    @media print{ .noprint{ display:none; } }
+  </style></head>
+  <body>
+    <div class="frame">
+      <div class="eyebrow">LORONGSATU21</div>
+      <h1>Data Karyawan — Arsip</h1>
+      <div class="rule"></div>
+      <div class="sub">ID Karyawan: <b>${escapeHtml(k.idKaryawan||'-')}</b> &nbsp;&middot;&nbsp; Dicetak ${new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}</div>
+      <table class="fields">
+        ${section('DATA DASAR')}
+        ${field('Nama Lengkap', escapeHtml(k.nama))}
+        ${field('Unit Penempatan', escapeHtml(unitLabel(k.unitKey)))}
+        ${field('Jabatan', escapeHtml(k.jabatan||'Anggota Tim'))}
+        ${field('Tanggal Mulai Kerja', k.tanggalMulaiKerja||'-')}
+        ${field('No. HP', escapeHtml(k.noHp))}
+
+        ${section('DATA PRIBADI')}
+        ${field('NIK (No. KTP)', escapeHtml(k.nik))}
+        ${field('Jenis Kelamin', escapeHtml(k.jenisKelamin))}
+        ${field('Tempat, Tanggal Lahir', `${escapeHtml(k.tempatLahir)||'-'}, ${tglLahirText}`)}
+        ${field('Akun Media Sosial', escapeHtml(k.medsos))}
+        ${field('Alamat Lengkap', escapeHtml(k.alamat))}
+
+        ${section('DATA KEPEGAWAIAN')}
+        ${field('Jenis Karyawan', escapeHtml(k.jenisKaryawan))}
+        ${field('Level Kompetensi', escapeHtml(k.levelKompetensi))}
+        ${field('Masa Kerja', masaKerjaText(k.tanggalMulaiKerja))}
+
+        ${section('RIWAYAT PENDIDIKAN &amp; KERJA')}
+        ${field('Pendidikan Terakhir', escapeHtml(k.pendidikanTerakhir))}
+        ${field('Tahun Lulus', escapeHtml(k.tahunLulus))}
+        ${field('Pengalaman Kerja Sebelumnya', escapeHtml(k.pengalamanKerja))}
+        ${field('Masa Kerja (di tempat sebelumnya)', escapeHtml(k.masaKerjaSebelumnya))}
+
+        ${section('KELUARGA &amp; KONTAK DARURAT')}
+        ${field('Nama Orang Tua/Wali', escapeHtml(k.namaOrangTua))}
+        ${field('Jumlah Saudara Kandung', escapeHtml(k.jumlahSaudara))}
+        ${field('Nama Kontak Darurat', escapeHtml(k.kontakDaruratNama))}
+        ${field('No. HP Kontak Darurat', escapeHtml(k.kontakDaruratHp))}
+        ${field('Hubungan', escapeHtml(k.kontakDaruratHubungan))}
+
+        ${section('CATATAN')}
+        ${field('Catatan', escapeHtml(k.catatan))}
+      </table>
+    </div>
+    <div class="noprint" style="text-align:center;margin-top:6mm;">
+      <button onclick="window.print()" style="padding:8px 18px;background:${NAVY};color:#fff;border:none;border-radius:6px;font-size:10pt;cursor:pointer;">🖨️ Print / Simpan sebagai PDF</button>
+    </div>
+  </body></html>`;
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ try{ win.print(); }catch(e){} }, 350);
+}
+
 function openDetailModal(karyawanId, onSaved){
   const isNew = !karyawanId;
   const k = isNew ? { id:uid(), nama:"", unitKey:"", jabatan:"", gajiPokok:0, status:"aktif", noHp:"" } : KARYAWAN.find(x=>x.id===karyawanId);
@@ -830,6 +924,7 @@ function openDetailModal(karyawanId, onSaved){
     <div style="margin-bottom:16px;">${field("Catatan","catatan","textarea")}</div>
 
     <div class="modal-actions" style="border-top:1px solid #e8e2cc;padding-top:16px;margin-top:4px;">
+      ${!isNew?`<button class="btn btn-ghost" data-act="cetak">🖨️ Cetak / Simpan PDF</button>`:''}
       <button class="btn btn-ghost" data-act="cancel">Batal</button>
       <button class="btn btn-primary" data-act="save">${isNew?"Tambah Karyawan":"Simpan Detail"}</button>
     </div>
@@ -845,6 +940,8 @@ function openDetailModal(karyawanId, onSaved){
 
   box.querySelector('[data-act="cancel"]').addEventListener("click", ()=>document.body.removeChild(overlay));
   overlay.addEventListener("click",(e)=>{ if(e.target===overlay) document.body.removeChild(overlay); });
+  const cetakBtn=box.querySelector('[data-act="cetak"]');
+  if(cetakBtn) cetakBtn.addEventListener("click", ()=>cetakDetailKaryawan(k));
   box.querySelector('[data-act="save"]').addEventListener("click", async ()=>{
     const namaEl=box.querySelector('[data-detail-field="nama"]');
     if(isNew && !namaEl.value.trim()){ showToast("Isi nama karyawan"); return; }
@@ -856,7 +953,7 @@ function openDetailModal(karyawanId, onSaved){
     k.idKaryawan = idInput ? formatIdKaryawan(parseInt(idInput,10)||idInput) : k.idKaryawan;
     const idNum = parseInt(idInput,10);
     if(idNum && idNum >= NEXT_KARYAWAN_ID) NEXT_KARYAWAN_ID = idNum + 1; // majukan counter otomatis kalau nomor yang dipakai >= counter sekarang
-    if(isNew){ k.status="aktif"; KARYAWAN.push(k); }
+    if(isNew){ k.status="aktif"; k.gajiAwal=k.gajiPokok; KARYAWAN.push(k); }
     const ok=await saveKaryawan();
     document.body.removeChild(overlay);
     showToast(ok ? (isNew?"Karyawan ditambahkan":"Detail tersimpan") : "Gagal tersimpan — coba lagi");
@@ -1354,6 +1451,73 @@ function renderPlafonGaji(c){
       </tr>`).join("") : `<tr><td colspan="5" class="empty-state">Belum ada laporan tersimpan.</td></tr>`;
   }
   render(); renderHist();
+}
+
+/* ================= RIWAYAT GAJI (Gaji Awal vs Saat Ini, pola kenaikan) ================= */
+function renderRiwayatGaji(c){
+  c.innerHTML=`
+    <div class="card card-pad" style="margin-bottom:16px;">
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.6;">
+        <b>Pola kenaikan gaji tahunan (otomatis):</b> tiap ulang tahun masa kerja, gaji naik mengikuti pola berulang
+        <b>100, 100, 200</b> (tahun ke-1 &amp; ke-2 naik 100, tahun ke-3 naik 200, lalu berulang untuk tahun ke-4,5,6 dst).
+        Kolom <b>"Gaji Sesuai Pola"</b> adalah usulan otomatis berdasarkan Gaji Awal dan masa kerja saat ini — bisa langsung diterapkan lewat tombol "Terapkan Pola".
+        <b>Gaji Saat Ini tetap bisa diedit manual kapan saja</b> untuk kenaikan di luar pola (mis. promosi khusus) — kalau tidak diubah manual, defaultnya mengikuti pola ini.
+      </div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Nama</th><th>Gaji Awal</th><th>Tgl Mulai Kerja</th><th>Masa Kerja</th><th>Gaji Sesuai Pola</th><th>Gaji Saat Ini</th><th></th></tr></thead>
+      <tbody id="rgBody"></tbody>
+    </table></div>
+  `;
+  function renderList(){
+    const rows=[...KARYAWAN].filter(k=>k.status==="aktif").sort((a,b)=>a.nama.localeCompare(b.nama));
+    document.getElementById("rgBody").innerHTML = rows.length ? rows.map(k=>{
+      const pola=gajiPokokSesuaiPola(k);
+      const matchPola = Math.abs(pola-(k.gajiPokok||0))<0.01;
+      return `<tr data-id="${k.id}">
+        <td style="text-align:left;">${escapeHtml(k.nama)}</td>
+        <td>
+          <div class="input-money" style="max-width:120px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-gajiawal-input="${k.id}" value="${(k.gajiAwal||k.gajiPokok||0).toLocaleString('id-ID')}"></div>
+        </td>
+        <td style="font-size:12px;color:var(--muted);">${k.tanggalMulaiKerja||"-"}</td>
+        <td style="font-size:12px;">${escapeHtml(masaKerjaText(k.tanggalMulaiKerja))}</td>
+        <td style="color:var(--muted);">${formatRupiah(pola)}${matchPola?' <span style="color:var(--moss-dark);font-size:10.5px;">(sesuai)</span>':''}</td>
+        <td>
+          <div class="input-money" style="max-width:130px;margin-left:auto;"><span>Rp</span><input type="text" inputmode="numeric" class="money" data-gajisaatini-input="${k.id}" value="${(k.gajiPokok||0).toLocaleString('id-ID')}"></div>
+          ${!matchPola?`<div style="font-size:10px;text-align:right;margin-top:2px;"><a href="javascript:void(0)" data-terapkan-pola="${k.id}" style="color:var(--moss-dark);font-weight:600;">↺ Terapkan Pola</a></div>`:''}
+        </td>
+        <td></td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="7" class="empty-state">Belum ada karyawan aktif.</td></tr>`;
+
+    document.querySelectorAll("[data-gajiawal-input]").forEach(inp=>{
+      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
+      inp.addEventListener("change", async e=>{
+        const id=e.target.getAttribute("data-gajiawal-input");
+        const k=KARYAWAN.find(x=>x.id===id); if(!k) return;
+        k.gajiAwal=parseMoneyInput(e.target.value);
+        const ok=await saveKaryawan(); showToast(ok?"Gaji Awal tersimpan":"Gagal tersimpan"); renderList();
+      });
+    });
+    document.querySelectorAll("[data-gajisaatini-input]").forEach(inp=>{
+      inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; });
+      inp.addEventListener("change", async e=>{
+        const id=e.target.getAttribute("data-gajisaatini-input");
+        const k=KARYAWAN.find(x=>x.id===id); if(!k) return;
+        k.gajiPokok=parseMoneyInput(e.target.value);
+        const ok=await saveKaryawan(); showToast(ok?"Gaji Saat Ini tersimpan (manual)":"Gagal tersimpan"); renderList();
+      });
+    });
+    document.querySelectorAll("[data-terapkan-pola]").forEach(a=>{
+      a.addEventListener("click", async ()=>{
+        const id=a.getAttribute("data-terapkan-pola");
+        const k=KARYAWAN.find(x=>x.id===id); if(!k) return;
+        k.gajiPokok=gajiPokokSesuaiPola(k);
+        const ok=await saveKaryawan(); showToast(ok?"Gaji diterapkan sesuai pola":"Gagal tersimpan"); renderList();
+      });
+    });
+  }
+  renderList();
 }
 
 function renderGaji(c){
