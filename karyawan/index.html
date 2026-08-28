@@ -489,21 +489,31 @@ function unitsInSelection(selectedUnitKey){
 }
 function computeBonusPool(unitKey, year, m){
   const ym=`${year}-${String(m).padStart(2,"0")}`;
-  let target, realisasi;
-  if(unitKey==="__LAINNYA__"){
-    const keys=unitsInSelection(unitKey);
-    target=keys.reduce((s,uk)=>s+((TARGET_OMZET[uk]&&TARGET_OMZET[uk][ym])||0),0);
-    realisasi=keys.reduce((s,uk)=>s+realisasiOmzetForMonth(uk,year,m),0);
-  } else {
-    target=(TARGET_OMZET[unitKey]&&TARGET_OMZET[unitKey][ym])||0;
-    realisasi=realisasiOmzetForMonth(unitKey,year,m);
+
+  // 1) Hitung dulu Total Bonus Keseluruhan (semua unit digabung jadi satu, ini basis utamanya)
+  const totalTarget=(TARGET_OMZET[""]&&TARGET_OMZET[""][ym])||0;
+  const totalRealisasi=realisasiOmzetForMonth("",year,m);
+  let totalPct=null, totalBonusPct=0, totalBonusPool=0;
+  if(totalTarget>0){
+    totalPct=totalRealisasi/totalTarget*100;
+    if(totalPct>=100) totalBonusPct=1; else if(totalPct>=90) totalBonusPct=0.5;
+    totalBonusPool=Math.round(totalRealisasi*totalBonusPct/100);
   }
-  if(!target||target<=0) return { target, realisasi, pct:null, bonusPct:0, bonusPool:0 };
-  const pct=realisasi/target*100;
-  let bonusPct=0;
-  if(pct>=100) bonusPct=1; else if(pct>=90) bonusPct=0.5;
-  const bonusPool=Math.round(realisasi*bonusPct/100);
-  return { target, realisasi, pct, bonusPct, bonusPool };
+
+  // 2) Tentukan realisasi & target kelompok yang dipilih (buat info/tampilan porsi)
+  const keys=unitsInSelection(unitKey); // "" -> semua unit, "__LAINNYA__" -> semua kecuali Lorongsatu21, dll
+  const groupRealisasi=keys.reduce((s,uk)=>s+realisasiOmzetForMonth(uk,year,m),0);
+  const groupTarget=keys.reduce((s,uk)=>s+((TARGET_OMZET[uk]&&TARGET_OMZET[uk][ym])||0),0);
+  const groupPct=groupTarget>0 ? groupRealisasi/groupTarget*100 : null;
+
+  // 3) Porsi bonus kelompok ini = Total Bonus Keseluruhan x (porsi omzet kelompok ini dari omzet total)
+  const porsi=totalRealisasi>0 ? groupRealisasi/totalRealisasi : 0;
+  const bonusPool=Math.round(totalBonusPool*porsi);
+
+  return {
+    target:groupTarget, realisasi:groupRealisasi, pct:groupPct, bonusPct:totalBonusPct, bonusPool,
+    totalTarget, totalRealisasi, totalPct, totalBonusPool, porsi
+  };
 }
 
 /* ================= KONVERSI DATA <-> SHEET ================= */
@@ -1724,22 +1734,25 @@ function renderBonus(c){
     const infoLain=computeBonusPool("__LAINNYA__", year, m);
     const unitLain=UNITS.filter(u=>u.key!==utama.key);
     document.getElementById("bnBandingCard").innerHTML = `
-      <div class="section-title" style="font-size:12.5px;margin-bottom:10px;">Perbandingan Realisasi Omzet &amp; Bonus — ${MONTH_NAMES[m-1]} ${year}</div>
+      <div class="section-title" style="font-size:12.5px;margin-bottom:4px;">Perbandingan Realisasi Omzet &amp; Bonus — ${MONTH_NAMES[m-1]} ${year}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Total Bonus Keseluruhan (semua unit): <b style="color:var(--moss-dark);">${formatRupiah(infoUtama.totalBonusPool)}</b> — dibagi ke bawah ini sesuai porsi omzet masing-masing</div>
       <div class="grid2">
         <div style="border-left:3px solid ${unitColor(utama.key)};padding-left:10px;">
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">${escapeHtml(utama.label)}</div>
           <div style="font-weight:700;font-size:16px;color:${unitColor(utama.key)};">${formatRupiah(infoUtama.realisasi)}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px;">Total Bonus</div>
+          <div style="font-size:10px;color:var(--muted);">${(infoUtama.porsi*100).toFixed(1)}% dari omzet total</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">Bagian Bonus</div>
           <div style="font-weight:700;font-size:14px;color:var(--moss-dark);">${formatRupiah(infoUtama.bonusPool)}</div>
         </div>
         <div style="border-left:3px solid var(--line);padding-left:10px;">
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Gabungan Unit Lain (${unitLain.map(u=>u.label).join(", ")||"-"})</div>
           <div style="font-weight:700;font-size:16px;">${formatRupiah(infoLain.realisasi)}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px;">Total Bonus</div>
+          <div style="font-size:10px;color:var(--muted);">${(infoLain.porsi*100).toFixed(1)}% dari omzet total</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">Bagian Bonus</div>
           <div style="font-weight:700;font-size:14px;color:var(--moss-dark);">${formatRupiah(infoLain.bonusPool)}</div>
         </div>
       </div>
-      <div style="font-size:10.5px;color:var(--muted);margin-top:10px;">Angka Total Bonus ini yang akan dibagikan ke karyawan masing-masing kelompok — pilih "${escapeHtml(utama.label)}" atau "Unit Lain (Gabungan)" di dropdown Unit di atas untuk membagikannya.</div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:10px;">Angka "Bagian Bonus" ini yang akan dibagikan ke karyawan masing-masing kelompok — pilih "${escapeHtml(utama.label)}" atau "Unit Lain (Gabungan)" di dropdown Unit di atas untuk membagikannya.</div>
     `;
   }
   function renderPool(){
@@ -1748,15 +1761,21 @@ function renderBonus(c){
     const year=parseInt(document.getElementById("bnTahun").value,10);
     const m=parseInt(document.getElementById("bnBulan").value,10);
     const info=computeBonusPool(unitKey,year,m);
-    document.getElementById("bnPoolCard").innerHTML = info.target<=0
-      ? `<div style="font-size:12.5px;color:var(--muted);">Belum ada target omzet untuk ${unitLabelText} bulan ${MONTH_NAMES[m-1]} ${year} — atur target lewat aplikasi Keuangan (halaman Target & Bonus) dulu.</div>`
-      : `<div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:6px;">Pool untuk: <span style="color:${(unitKey&&unitKey!=="__LAINNYA__")?unitColor(unitKey):'var(--moss-dark)'};">${escapeHtml(unitLabelText)}</span></div>
-        <div class="grid3">
-          <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Target</div><div style="font-weight:700;">${formatRupiah(info.target)}</div></div>
-          <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Realisasi</div><div style="font-weight:700;">${formatRupiah(info.realisasi)}</div></div>
-          <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Pencapaian</div><div style="font-weight:700;">${info.pct.toFixed(1)}%</div></div>
+    document.getElementById("bnPoolCard").innerHTML = info.totalTarget<=0
+      ? `<div style="font-size:12.5px;color:var(--muted);">Belum ada Target Omzet "Semua Unit" untuk bulan ${MONTH_NAMES[m-1]} ${year} — Total Bonus Keseluruhan dihitung dari target gabungan semua unit ini. Atur dulu lewat aplikasi Keuangan (halaman Target & Bonus, pilih "Semua Unit").</div>`
+      : `<div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">
+          Total Bonus Keseluruhan (semua unit, ${info.bonusPct}% dari omzet gabungan): <b style="color:var(--moss-dark);">${formatRupiah(info.totalBonusPool)}</b>
+          <span style="display:block;font-size:10.5px;">Target Rp${info.totalTarget.toLocaleString('id-ID')} · Realisasi Rp${info.totalRealisasi.toLocaleString('id-ID')} · Pencapaian ${info.totalPct.toFixed(1)}%</span>
         </div>
-        <div style="margin-top:10px;font-size:13px;font-weight:700;color:var(--moss-dark);">Total Bonus Pool (${info.bonusPct}% dari omzet): ${formatRupiah(info.bonusPool)}</div>`;
+        <div style="border-top:1px dashed var(--line);padding-top:8px;">
+          <div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:6px;">Porsi untuk: <span style="color:${(unitKey&&unitKey!=="__LAINNYA__")?unitColor(unitKey):'var(--moss-dark)'};">${escapeHtml(unitLabelText)}</span></div>
+          <div class="grid3">
+            <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Realisasi Omzet</div><div style="font-weight:700;">${formatRupiah(info.realisasi)}</div></div>
+            <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Porsi dari Omzet Total</div><div style="font-weight:700;">${(info.porsi*100).toFixed(1)}%</div></div>
+            <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Bagian Bonus</div><div style="font-weight:700;">${formatRupiah(info.bonusPool)}</div></div>
+          </div>
+          <div style="margin-top:8px;font-size:13px;font-weight:700;color:var(--moss-dark);">Total Bonus Pool untuk dibagikan: ${formatRupiah(info.bonusPool)}</div>
+        </div>`;
     return info;
   }
   function currentBulan(){
