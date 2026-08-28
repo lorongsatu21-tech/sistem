@@ -619,6 +619,7 @@ function tarifJabatanFromRows(rows){
 }
 async function saveTarifJabatan(){ return sheetsReplaceAll(SHEET_TARIF_JABATAN, HDR_TARIF_JABATAN, rowsFromTarifJabatan()); }
 function normalizeJabatanName(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g," "); }
+function bulatkanKe50Bawah(n){ return Math.floor((Number(n)||0)/50)*50; }
 function tarifUntukJabatan(namaJabatan){
   if(!namaJabatan) return 0;
   const target=normalizeJabatanName(namaJabatan);
@@ -1775,7 +1776,7 @@ function renderBonus(c){
       const propLevel = sumLevel>0 ? levels[idx]/sumLevel : 1/daftar.length;
       const propMasa = sumMasa>0 ? masaBulan[idx]/sumMasa : 1/daftar.length;
       const score = wLevel*propLevel + wMasa*propMasa;
-      const bagian = Math.round(info.bonusPool * score);
+      const bagian = bulatkanKe50Bawah(info.bonusPool * score);
       const inp = document.querySelector(`[data-bonus-input="${k.id}"]`);
       if(inp) inp.value = bagian?bagian.toLocaleString("id-ID"):"";
     });
@@ -1880,7 +1881,7 @@ function renderBonus(c){
         .map(tr=>tr.querySelector("[data-bonus-input]"))
         .filter(Boolean);
       if(!inputs.length) return 0;
-      const bagian=Math.floor(info.bonusPool/inputs.length);
+      const bagian=bulatkanKe50Bawah(info.bonusPool/inputs.length);
       inputs.forEach(inp=>{ inp.value=bagian?bagian.toLocaleString("id-ID"):""; });
       return inputs.length;
     }
