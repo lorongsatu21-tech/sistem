@@ -1663,6 +1663,7 @@ function renderBonus(c){
       <div class="field-inline"><label class="f-label">Bulan</label><select id="bnBulan">${monthOptions}</select></div>
     </div>
     <div class="card card-pad" style="margin-bottom:18px;" id="bnPoolCard"></div>
+    <div class="card card-pad" style="margin-bottom:18px;" id="bnBandingCard"></div>
     <div style="font-size:11.5px;color:var(--muted);margin:-10px 0 18px;">Catatan: seluruh angka di halaman ini (Target, Realisasi, Bonus Pool, dan yang dibagikan ke karyawan) memakai <b>notasi ribuan</b>, konsisten dengan aplikasi Keuangan. Nilai riil (dikali 1000) hanya ditampilkan di halaman <b>Struk Gaji</b>.</div>
 
     <div class="card card-pad" style="margin-bottom:16px;">
@@ -1694,6 +1695,32 @@ function renderBonus(c){
   document.getElementById("bnBulan").value=String(now.getMonth()+1);
   document.getElementById("bnTahun").value=String(now.getFullYear());
 
+  function findUnitByNamaMirip(namaCari){
+    const target=normalizeJabatanName(namaCari);
+    return UNITS.find(u=>normalizeJabatanName(u.label)===target || normalizeJabatanName(u.label).includes(target));
+  }
+  function renderBanding(){
+    const year=parseInt(document.getElementById("bnTahun").value,10);
+    const m=parseInt(document.getElementById("bnBulan").value,10);
+    const utama=findUnitByNamaMirip("Lorongsatu21");
+    if(!utama){ document.getElementById("bnBandingCard").innerHTML=""; return; }
+    const realisasiUtama=realisasiOmzetForMonth(utama.key, year, m);
+    const unitLain=UNITS.filter(u=>u.key!==utama.key);
+    const realisasiLain=unitLain.reduce((s,u)=>s+realisasiOmzetForMonth(u.key, year, m), 0);
+    document.getElementById("bnBandingCard").innerHTML = `
+      <div class="section-title" style="font-size:12.5px;margin-bottom:10px;">Perbandingan Realisasi Omzet — ${MONTH_NAMES[m-1]} ${year}</div>
+      <div class="grid2">
+        <div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">${escapeHtml(utama.label)}</div>
+          <div style="font-weight:700;font-size:16px;color:${unitColor(utama.key)};">${formatRupiah(realisasiUtama)}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Gabungan Unit Lain (${unitLain.map(u=>u.label).join(", ")||"-"})</div>
+          <div style="font-weight:700;font-size:16px;">${formatRupiah(realisasiLain)}</div>
+        </div>
+      </div>
+    `;
+  }
   function renderPool(){
     const unitKey=document.getElementById("bnUnit").value;
     const unitLabelText = unitKey ? unitLabel(unitKey) : "Semua Unit";
@@ -1783,7 +1810,7 @@ function renderBonus(c){
       });
     });
   }
-  function refreshAll(){ renderPool(); renderKaryawanBonusForm(); renderHist(); }
+  function refreshAll(){ renderPool(); renderBanding(); renderKaryawanBonusForm(); renderHist(); }
   document.getElementById("bnUnit").addEventListener("change", refreshAll);
   document.getElementById("bnTahun").addEventListener("change", refreshAll);
   document.getElementById("bnBulan").addEventListener("change", refreshAll);
