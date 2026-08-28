@@ -110,6 +110,7 @@ tr.bonus-row-hl td{font-weight:600;}
   body{background:#fff !important;}
   .struk-grid{grid-template-columns:1fr 1fr;gap:8mm;}
   .struk-card{break-inside:avoid;box-shadow:none;border:1px solid #999;}
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;}
 }
 
 @media (max-width:600px){.grid2,.grid3,.grid4{grid-template-columns:1fr;}}
@@ -822,7 +823,7 @@ function cetakDetailKaryawan(k){
     .rule{ width:34mm; height:0.9mm; background:${GOLD}; margin-bottom:5mm; }
     table.fields{ width:100%; border-collapse:collapse; }
     .frame{ border:0.9pt solid ${GOLDLIGHT}; padding:8mm; }
-    @media print{ .noprint{ display:none; } }
+    @media print{ .noprint{ display:none; } *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;} }
   </style></head>
   <body>
     <div class="frame">
