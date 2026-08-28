@@ -239,7 +239,7 @@ const OAUTH_CLIENT_ID = "161910278592-4g8h4oi240lg88hkjlm0ja8nl7jnq53v.apps.goog
 const SPREADSHEET_ID = "1bAS8NIzcSSENH5o9MSucaINMURUcwXFCRln0w4_g23A";
 const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
-const SHEET_UNIT="Unit", SHEET_KAS_MASUK="Kas Masuk", SHEET_TARGET_OMZET="Target Omzet";
+const SHEET_UNIT="Unit", SHEET_KAS_MASUK="Kas Masuk", SHEET_PEMASUKAN_LAIN="Pemasukan Lain", SHEET_TARGET_OMZET="Target Omzet";
 const SHEET_KARYAWAN="Karyawan", SHEET_GAJI="Gaji", SHEET_BONUS="Bonus", SHEET_TARIF_JABATAN="Tarif Jabatan", SHEET_PLAFON_GAJI="Plafon Gaji";
 const HDR_KARYAWAN=["ID Karyawan","Nama","Unit","Jabatan","Gaji Pokok","Gaji Awal","Status","No HP",
   "NIK","Tempat Lahir","Tanggal Lahir","Jenis Kelamin","Alamat","Akun Medsos",
@@ -383,6 +383,7 @@ function unitByLabelMap(unitsList){ const m={}; unitsList.forEach(u=>{ m[u.label
 /* ================= STATE ================= */
 let UNITS=[];               // [{key,label}] — dibaca dari Sheet "Unit" (dikelola aplikasi Keuangan)
 let PEMASUKAN_RAW=[];        // baris mentah "Kas Masuk" (dipakai hitung realisasi omzet utk bonus)
+let PEMASUKAN_LAIN_RAW=[];   // baris mentah "Pemasukan Lain" (bon, orderan, jasa, dll — ikut dihitung sbg omzet, sama seperti aplikasi Keuangan)
 let TARGET_OMZET={};         // { unitKey: { "YYYY-MM": target } }
 let TARIF_JABATAN=[];        // [{nama, kelipatan}] urutan tetap = urutan tanggung jawab (tinggi -> rendah)
 let NEXT_KARYAWAN_ID=1;      // nomor ID karyawan berikutnya, permanen naik terus meski ada yg dihapus
@@ -458,12 +459,19 @@ const FAKTOR_RIBUAN = 1000; // seluruh data di aplikasi (Keuangan & Karyawan) te
 function realisasiOmzetForMonth(unitKey, year, m){
   const {from,to}=monthRange(year,m);
   let total=0;
+  const byLabel=unitByLabelMap(UNITS);
   PEMASUKAN_RAW.forEach(r=>{
     const dt=normalizeDateCell(r["Tanggal"]); if(!dt||dt<from||dt>to) return;
-    const rowUnitKey=(unitByLabelMap(UNITS))[String(r["Unit"]||"").trim().toLowerCase()];
+    const rowUnitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()];
     if(unitKey && rowUnitKey!==unitKey) return;
     const kas=(Number(r["Kas Pagi"])||0)+(Number(r["Kas Sore"])||0)+(Number(r["Transfer Pagi"])||0)+(Number(r["Transfer Sore"])||0);
     total+=kas;
+  });
+  PEMASUKAN_LAIN_RAW.forEach(r=>{
+    const dt=normalizeDateCell(r["Tanggal"]); if(!dt||dt<from||dt>to) return;
+    const rowUnitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()];
+    if(unitKey && rowUnitKey!==unitKey) return;
+    total+=Number(r["Jumlah"])||0;
   });
   return total;
 }
@@ -594,6 +602,10 @@ function hitungPlafonGaji(year){
       const dt=normalizeDateCell(r["Tanggal"]); if(!dt||dt<from||dt>to) return;
       omzet += (Number(r["Kas Pagi"])||0)+(Number(r["Kas Sore"])||0)+(Number(r["Transfer Pagi"])||0)+(Number(r["Transfer Sore"])||0);
       operasional += Number(r["Alokasi Operasional"])||0;
+    });
+    PEMASUKAN_LAIN_RAW.forEach(r=>{
+      const dt=normalizeDateCell(r["Tanggal"]); if(!dt||dt<from||dt>to) return;
+      omzet += Number(r["Jumlah"])||0;
     });
     monthly.push({ m, omzet, operasional });
   }
@@ -1839,12 +1851,13 @@ function renderBonus(c){
 
 /* ================= INIT ================= */
 async function loadAppData(){
-  const [unitRows, kasRows, targetRows, karyawanRows, gajiRows, bonusRows, tarifRows, plafonRows] = await Promise.all([
-    sheetsGetAll(SHEET_UNIT), sheetsGetAll(SHEET_KAS_MASUK), sheetsGetAll(SHEET_TARGET_OMZET),
+  const [unitRows, kasRows, lainRows, targetRows, karyawanRows, gajiRows, bonusRows, tarifRows, plafonRows] = await Promise.all([
+    sheetsGetAll(SHEET_UNIT), sheetsGetAll(SHEET_KAS_MASUK), sheetsGetAll(SHEET_PEMASUKAN_LAIN), sheetsGetAll(SHEET_TARGET_OMZET),
     sheetsGetAll(SHEET_KARYAWAN), sheetsGetAll(SHEET_GAJI), sheetsGetAll(SHEET_BONUS), sheetsGetAll(SHEET_TARIF_JABATAN), sheetsGetAll(SHEET_PLAFON_GAJI)
   ]);
   UNITS = unitRows && unitRows.length ? unitsFromRows(unitRows) : [];
   PEMASUKAN_RAW = kasRows||[];
+  PEMASUKAN_LAIN_RAW = lainRows||[];
   TARGET_OMZET = targetOmzetFromRows(targetRows||[], UNITS);
   KARYAWAN = karyawanFromRows(karyawanRows||[], UNITS);
   PLAFON_GAJI = plafonGajiFromRows(plafonRows||[]);
