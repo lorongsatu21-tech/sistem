@@ -475,9 +475,17 @@ function realisasiOmzetForMonth(unitKey, year, m){
   });
   return total;
 }
+function normalizeLonggar(s){ return String(s||"").toLowerCase().replace(/[^a-z0-9]/g,""); }
 function findUnitByNamaMirip(namaCari){
   const target=normalizeJabatanName(namaCari);
-  return UNITS.find(u=>normalizeJabatanName(u.label)===target || normalizeJabatanName(u.label).includes(target));
+  const targetLonggar=normalizeLonggar(namaCari);
+  let hit=UNITS.find(u=>normalizeJabatanName(u.label)===target || normalizeJabatanName(u.label).includes(target));
+  if(hit) return hit;
+  // fallback lebih longgar: abaikan semua spasi/simbol, cocokkan hurut & angka saja
+  return UNITS.find(u=>{
+    const lbl=normalizeLonggar(u.label);
+    return lbl===targetLonggar || lbl.includes(targetLonggar) || targetLonggar.includes(lbl);
+  });
 }
 function unitsInSelection(selectedUnitKey){
   if(selectedUnitKey==="__LAINNYA__"){
@@ -1729,7 +1737,10 @@ function renderBonus(c){
     const year=parseInt(document.getElementById("bnTahun").value,10);
     const m=parseInt(document.getElementById("bnBulan").value,10);
     const utama=findUnitByNamaMirip("Lorongsatu21");
-    if(!utama){ document.getElementById("bnBandingCard").innerHTML=""; return; }
+    if(!utama){
+      document.getElementById("bnBandingCard").innerHTML = `<div style="font-size:12px;color:var(--muted);">Tidak menemukan unit bernama "Lorongsatu21" di daftar Unit Anda (${UNITS.map(u=>u.label).join(", ")||"belum ada unit"}). Cek penulisan nama unit di aplikasi Keuangan → Pengaturan Unit.</div>`;
+      return;
+    }
     const infoUtama=computeBonusPool(utama.key, year, m);
     const infoLain=computeBonusPool("__LAINNYA__", year, m);
     const unitLain=UNITS.filter(u=>u.key!==utama.key);
