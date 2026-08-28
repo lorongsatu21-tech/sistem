@@ -1763,8 +1763,43 @@ function renderBonus(c){
           <div style="font-weight:700;font-size:14px;color:var(--moss-dark);">${formatRupiah(infoLain.bonusPool)}</div>
         </div>
       </div>
-      <div style="font-size:10.5px;color:var(--muted);margin-top:10px;">Angka "Bagian Bonus" ini yang akan dibagikan ke karyawan masing-masing kelompok — pilih "${escapeHtml(utama.label)}" atau "Unit Lain (Gabungan)" di dropdown Unit di atas untuk membagikannya.</div>
+      <div style="font-size:10.5px;color:var(--muted);margin:10px 0 12px;">Angka "Bagian Bonus" ini yang akan dibagikan ke karyawan masing-masing kelompok.</div>
+      <button class="btn btn-primary btn-sm" id="bnBagiSemuaSekaligus">⚡ Bagi Otomatis ke Semua Sekaligus (Lorongsatu21 &amp; Unit Lain)</button>
     `;
+    const btnSekaligus=document.getElementById("bnBagiSemuaSekaligus");
+    if(btnSekaligus) btnSekaligus.addEventListener("click", bagiOtomatisSemuaSekaligus);
+  }
+  function bagiKeKelompok(unitKeySelector, year, m, wLevel, wMasa){
+    const info=computeBonusPool(unitKeySelector, year, m);
+    const activeKeys=unitsInSelection(unitKeySelector);
+    const daftar=KARYAWAN.filter(k=>k.status==="aktif" && k.ikutBonus!==false && activeKeys.includes(k.unitKey));
+    if(!daftar.length) return 0;
+    const levels=daftar.map(k=>Number(k.levelKompetensi)||0);
+    const masaBulan=daftar.map(k=>masaKerjaBulanCount(k.tanggalMulaiKerja));
+    const sumLevel=levels.reduce((s,v)=>s+v,0);
+    const sumMasa=masaBulan.reduce((s,v)=>s+v,0);
+    daftar.forEach((k,idx)=>{
+      const propLevel = sumLevel>0 ? levels[idx]/sumLevel : 1/daftar.length;
+      const propMasa = sumMasa>0 ? masaBulan[idx]/sumMasa : 1/daftar.length;
+      const score = wLevel*propLevel + wMasa*propMasa;
+      const bagian = Math.round(info.bonusPool * score);
+      const inp = document.querySelector(`[data-bonus-input="${k.id}"]`);
+      if(inp) inp.value = bagian?bagian.toLocaleString("id-ID"):"";
+    });
+    return daftar.length;
+  }
+  function bagiOtomatisSemuaSekaligus(){
+    if(!updateBobotNote()){ showToast("Total bobot harus tepat 100%"); return; }
+    const utama=findUnitByNamaMirip("Lorongsatu21");
+    if(!utama){ showToast('Unit "Lorongsatu21" tidak ditemukan'); return; }
+    const year=parseInt(document.getElementById("bnTahun").value,10);
+    const m=parseInt(document.getElementById("bnBulan").value,10);
+    const wLevel=(parseFloat(document.getElementById("bnBobotLevel").value)||0)/100;
+    const wMasa=(parseFloat(document.getElementById("bnBobotMasaKerja").value)||0)/100;
+    const n1=bagiKeKelompok(utama.key, year, m, wLevel, wMasa);
+    const n2=bagiKeKelompok("__LAINNYA__", year, m, wLevel, wMasa);
+    recalcBonusTotal();
+    showToast(`Dibagi otomatis sekaligus: ${n1} karyawan ${utama.label}, ${n2} karyawan unit lain`);
   }
   function renderPool(){
     const unitKey=document.getElementById("bnUnit").value;
@@ -1864,7 +1899,8 @@ function renderBonus(c){
     });
   }
   function refreshAll(){ renderPool(); renderBanding(); renderKaryawanBonusForm(); renderHist(); }
-  document.getElementById("bnUnit").addEventListener("change", refreshAll);
+  function refreshUnitOnly(){ renderPool(); renderBanding(); highlightBonusRows(document.getElementById("bnUnit").value); renderHist(); }
+  document.getElementById("bnUnit").addEventListener("change", refreshUnitOnly);
   document.getElementById("bnTahun").addEventListener("change", refreshAll);
   document.getElementById("bnBulan").addEventListener("change", refreshAll);
   function updateBobotNote(){
