@@ -378,7 +378,7 @@ function normalizeDateCell(v){
   const m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m) return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
   return null;
 }
-function unitByLabelMap(unitsList){ const m={}; unitsList.forEach(u=>{ m[u.label.trim().toLowerCase()]=u.key; }); return m; }
+function unitByLabelMap(unitsList){ const m={}; unitsList.forEach(u=>{ m[normalizeJabatanName(u.label)]=u.key; }); return m; }
 
 /* ================= STATE ================= */
 let UNITS=[];               // [{key,label}] — dibaca dari Sheet "Unit" (dikelola aplikasi Keuangan)
@@ -462,14 +462,14 @@ function realisasiOmzetForMonth(unitKey, year, m){
   const byLabel=unitByLabelMap(UNITS);
   PEMASUKAN_RAW.forEach(r=>{
     const dt=normalizeDateCell(r["Tanggal"]); if(!dt||dt<from||dt>to) return;
-    const rowUnitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()];
+    const rowUnitKey=byLabel[normalizeJabatanName(r["Unit"])];
     if(unitKey && rowUnitKey!==unitKey) return;
     const kas=(Number(r["Kas Pagi"])||0)+(Number(r["Kas Sore"])||0)+(Number(r["Transfer Pagi"])||0)+(Number(r["Transfer Sore"])||0);
     total+=kas;
   });
   PEMASUKAN_LAIN_RAW.forEach(r=>{
     const dt=normalizeDateCell(r["Tanggal"]); if(!dt||dt<from||dt>to) return;
-    const rowUnitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()];
+    const rowUnitKey=byLabel[normalizeJabatanName(r["Unit"])];
     if(unitKey && rowUnitKey!==unitKey) return;
     total+=Number(r["Jumlah"])||0;
   });
@@ -527,7 +527,7 @@ function karyawanFromRows(rows, unitsList){
   const byLabel=unitByLabelMap(unitsList);
   return rows.map(r=>{
     const nama=String(r["Nama"]||"").trim(); if(!nama) return null;
-    const unitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()]||"";
+    const unitKey=byLabel[normalizeJabatanName(r["Unit"])]||"";
     return {
       id:uid(), idKaryawan:String(r["ID Karyawan"]||"").trim(), nama, unitKey, jabatan:r["Jabatan"]||"", gajiPokok:Number(r["Gaji Pokok"])||0, gajiAwal:Number(r["Gaji Awal"])||Number(r["Gaji Pokok"])||0, status:(String(r["Status"]||"aktif").toLowerCase()==="nonaktif"?"nonaktif":"aktif"), noHp:r["No HP"]||"",
       nik:r["NIK"]||"", tempatLahir:r["Tempat Lahir"]||"", tanggalLahir:normalizeDateCell(r["Tanggal Lahir"])||"", jenisKelamin:r["Jenis Kelamin"]||"", alamat:r["Alamat"]||"", medsos:r["Akun Medsos"]||"",
@@ -564,7 +564,7 @@ function bonusFromRows(rows, karyawanList, unitsList){
   const byLabel=unitByLabelMap(unitsList);
   return rows.map(r=>{
     const karyawanId=byNama[String(r["Karyawan"]||"").trim().toLowerCase()]; if(!karyawanId) return null;
-    const unitKey=byLabel[String(r["Unit"]||"").trim().toLowerCase()]||"";
+    const unitKey=byLabel[normalizeJabatanName(r["Unit"])]||"";
     const tanggalBayar=normalizeDateCell(r["Tanggal Bayar"])||String(r["Tanggal Bayar"]||"").replace(/^'/,"");
     const bulan=String(r["Bulan"]||"").replace(/^'/,"").trim();
     return { id:uid(), karyawanId, unitKey, bulan, jumlah:Number(r["Jumlah"])||0, tanggalBayar };
@@ -576,7 +576,7 @@ function targetOmzetFromRows(rows, unitsList){
   const byLabel=unitByLabelMap(unitsList); const result={};
   rows.forEach(r=>{
     const labelRaw=String(r["Unit"]||"").trim();
-    const key = labelRaw.toLowerCase()==="semua unit" ? "" : byLabel[labelRaw.toLowerCase()];
+    const key = normalizeJabatanName(labelRaw)==="semua unit" ? "" : byLabel[normalizeJabatanName(labelRaw)];
     if(key===undefined) return;
     const ym=String(r["Bulan"]||"").replace(/^'/,"").trim(); if(!ym) return;
     if(!result[key]) result[key]={};
