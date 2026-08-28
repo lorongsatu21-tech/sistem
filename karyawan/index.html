@@ -243,7 +243,7 @@ const SHEET_UNIT="Unit", SHEET_KAS_MASUK="Kas Masuk", SHEET_PEMASUKAN_LAIN="Pema
 const SHEET_KARYAWAN="Karyawan", SHEET_GAJI="Gaji", SHEET_BONUS="Bonus", SHEET_TARIF_JABATAN="Tarif Jabatan", SHEET_PLAFON_GAJI="Plafon Gaji";
 const HDR_KARYAWAN=["ID Karyawan","Nama","Unit","Jabatan","Gaji Pokok","Gaji Awal","Status","No HP",
   "NIK","Tempat Lahir","Tanggal Lahir","Jenis Kelamin","Alamat","Akun Medsos",
-  "Tanggal Mulai Kerja","Jenis Karyawan","Level Kompetensi",
+  "Tanggal Mulai Kerja","Jenis Karyawan","Level Kompetensi","Ikut Bonus",
   "Nama Orang Tua","Jumlah Saudara","Kontak Darurat Nama","Kontak Darurat HP","Kontak Darurat Hubungan",
   "Pendidikan Terakhir","Tahun Lulus","Pengalaman Kerja","Masa Kerja Sebelumnya","Catatan","Next ID Counter"];
 const HDR_GAJI=["Tanggal Bayar","Karyawan","Bulan","Jumlah","Tunjangan Jabatan","Keterangan"];
@@ -498,7 +498,7 @@ function rowsFromKaryawan(){
   return KARYAWAN.map((k,i)=>({
     "ID Karyawan":k.idKaryawan||"", "Nama":k.nama, "Unit":unitLabel(k.unitKey), "Jabatan":k.jabatan||"", "Gaji Pokok":k.gajiPokok||0, "Gaji Awal":k.gajiAwal||k.gajiPokok||0, "Status":k.status||"aktif", "No HP":k.noHp||"",
     "NIK":k.nik||"", "Tempat Lahir":k.tempatLahir||"", "Tanggal Lahir":k.tanggalLahir?asText(k.tanggalLahir):"", "Jenis Kelamin":k.jenisKelamin||"", "Alamat":k.alamat||"", "Akun Medsos":k.medsos||"",
-    "Tanggal Mulai Kerja":k.tanggalMulaiKerja?asText(k.tanggalMulaiKerja):"", "Jenis Karyawan":k.jenisKaryawan||"", "Level Kompetensi":k.levelKompetensi||"",
+    "Tanggal Mulai Kerja":k.tanggalMulaiKerja?asText(k.tanggalMulaiKerja):"", "Jenis Karyawan":k.jenisKaryawan||"", "Level Kompetensi":k.levelKompetensi||"", "Ikut Bonus":k.ikutBonus===false?"tidak":"ya",
     "Nama Orang Tua":k.namaOrangTua||"", "Jumlah Saudara":k.jumlahSaudara||"", "Kontak Darurat Nama":k.kontakDaruratNama||"", "Kontak Darurat HP":k.kontakDaruratHp||"", "Kontak Darurat Hubungan":k.kontakDaruratHubungan||"",
     "Pendidikan Terakhir":k.pendidikanTerakhir||"", "Tahun Lulus":k.tahunLulus||"", "Pengalaman Kerja":k.pengalamanKerja||"", "Masa Kerja Sebelumnya":k.masaKerjaSebelumnya||"", "Catatan":k.catatan||"",
     "Next ID Counter": i===0?NEXT_KARYAWAN_ID:""
@@ -512,7 +512,7 @@ function karyawanFromRows(rows, unitsList){
     return {
       id:uid(), idKaryawan:String(r["ID Karyawan"]||"").trim(), nama, unitKey, jabatan:r["Jabatan"]||"", gajiPokok:Number(r["Gaji Pokok"])||0, gajiAwal:Number(r["Gaji Awal"])||Number(r["Gaji Pokok"])||0, status:(String(r["Status"]||"aktif").toLowerCase()==="nonaktif"?"nonaktif":"aktif"), noHp:r["No HP"]||"",
       nik:r["NIK"]||"", tempatLahir:r["Tempat Lahir"]||"", tanggalLahir:normalizeDateCell(r["Tanggal Lahir"])||"", jenisKelamin:r["Jenis Kelamin"]||"", alamat:r["Alamat"]||"", medsos:r["Akun Medsos"]||"",
-      tanggalMulaiKerja:normalizeDateCell(r["Tanggal Mulai Kerja"])||"", jenisKaryawan:r["Jenis Karyawan"]||"", levelKompetensi:r["Level Kompetensi"]||"",
+      tanggalMulaiKerja:normalizeDateCell(r["Tanggal Mulai Kerja"])||"", jenisKaryawan:r["Jenis Karyawan"]||"", levelKompetensi:r["Level Kompetensi"]||"", ikutBonus:String(r["Ikut Bonus"]||"ya").trim().toLowerCase()!=="tidak",
       namaOrangTua:r["Nama Orang Tua"]||"", jumlahSaudara:r["Jumlah Saudara"]||"", kontakDaruratNama:r["Kontak Darurat Nama"]||"", kontakDaruratHp:r["Kontak Darurat HP"]||"", kontakDaruratHubungan:r["Kontak Darurat Hubungan"]||"",
       pendidikanTerakhir:r["Pendidikan Terakhir"]||"", tahunLulus:r["Tahun Lulus"]||"", pengalamanKerja:r["Pengalaman Kerja"]||"", masaKerjaSebelumnya:r["Masa Kerja Sebelumnya"]||"", catatan:r["Catatan"]||""
     };
@@ -913,6 +913,14 @@ function openDetailModal(karyawanId, onSaved){
       <div class="field-inline"><label class="f-label">Masa Kerja</label><div style="padding:8px 0;font-size:13.5px;font-weight:600;color:var(--moss-dark);" id="dtMasaKerja">${masaKerjaText(k.tanggalMulaiKerja)}</div></div>
       ${selectField("Jenis Karyawan","jenisKaryawan",["Tetap","Kontrak","Harian","Paruh Waktu"])}
       ${selectField("Level Kompetensi","levelKompetensi",["1","2","3","4","5"])}
+      <div class="field-inline">
+        <label class="f-label">Ikut Pembagian Bonus</label>
+        <select data-detail-field-bool="ikutBonus">
+          <option value="ya" ${k.ikutBonus!==false?"selected":""}>Ya</option>
+          <option value="tidak" ${k.ikutBonus===false?"selected":""}>Tidak (mis. Owner/Admin)</option>
+        </select>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">Kalau "Tidak", karyawan ini tidak akan muncul di halaman Bonus</div>
+      </div>
     </div>
 
     <div class="section-title-elegant">Riwayat Pendidikan & Kerja</div>
@@ -961,6 +969,10 @@ function openDetailModal(karyawanId, onSaved){
     box.querySelectorAll("[data-detail-field]").forEach(el=>{
       const key=el.getAttribute("data-detail-field");
       k[key] = el.getAttribute("data-money")==="1" ? parseMoneyInput(el.value) : el.value.trim();
+    });
+    box.querySelectorAll("[data-detail-field-bool]").forEach(el=>{
+      const key=el.getAttribute("data-detail-field-bool");
+      k[key] = el.value !== "tidak";
     });
     k.idKaryawan = idInput ? formatIdKaryawan(parseInt(idInput,10)||idInput) : k.idKaryawan;
     const idNum = parseInt(idInput,10);
@@ -1706,7 +1718,7 @@ function renderBonus(c){
   }
   function renderKaryawanBonusForm(){
     const bulan=currentBulan();
-    const daftar=[...KARYAWAN].filter(k=>k.status==="aktif").sort((a,b)=>{
+    const daftar=[...KARYAWAN].filter(k=>k.status==="aktif" && k.ikutBonus!==false).sort((a,b)=>{
       const ua=unitLabel(a.unitKey), ub=unitLabel(b.unitKey);
       return ua.localeCompare(ub) || a.nama.localeCompare(b.nama);
     });
@@ -1793,7 +1805,7 @@ function renderBonus(c){
     const info=renderPool();
     const unitKey=document.getElementById("bnUnit").value;
     const unitLabelText = unitKey ? unitLabel(unitKey) : "Semua Unit";
-    const daftar=unitKey ? KARYAWAN.filter(k=>k.status==="aktif" && k.unitKey===unitKey) : KARYAWAN.filter(k=>k.status==="aktif");
+    const daftar=unitKey ? KARYAWAN.filter(k=>k.status==="aktif" && k.ikutBonus!==false && k.unitKey===unitKey) : KARYAWAN.filter(k=>k.status==="aktif" && k.ikutBonus!==false);
     if(!daftar.length){ showToast("Belum ada karyawan aktif"); return; }
     const wLevel=(parseFloat(document.getElementById("bnBobotLevel").value)||0)/100;
     const wMasa=(parseFloat(document.getElementById("bnBobotMasaKerja").value)||0)/100;
