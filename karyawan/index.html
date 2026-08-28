@@ -475,10 +475,29 @@ function realisasiOmzetForMonth(unitKey, year, m){
   });
   return total;
 }
+function findUnitByNamaMirip(namaCari){
+  const target=normalizeJabatanName(namaCari);
+  return UNITS.find(u=>normalizeJabatanName(u.label)===target || normalizeJabatanName(u.label).includes(target));
+}
+function unitsInSelection(selectedUnitKey){
+  if(selectedUnitKey==="__LAINNYA__"){
+    const utama=findUnitByNamaMirip("Lorongsatu21");
+    return UNITS.filter(u=>!utama||u.key!==utama.key).map(u=>u.key);
+  }
+  if(!selectedUnitKey) return UNITS.map(u=>u.key); // Semua Unit
+  return [selectedUnitKey];
+}
 function computeBonusPool(unitKey, year, m){
   const ym=`${year}-${String(m).padStart(2,"0")}`;
-  const target=(TARGET_OMZET[unitKey]&&TARGET_OMZET[unitKey][ym])||0;
-  const realisasi=realisasiOmzetForMonth(unitKey,year,m);
+  let target, realisasi;
+  if(unitKey==="__LAINNYA__"){
+    const keys=unitsInSelection(unitKey);
+    target=keys.reduce((s,uk)=>s+((TARGET_OMZET[uk]&&TARGET_OMZET[uk][ym])||0),0);
+    realisasi=keys.reduce((s,uk)=>s+realisasiOmzetForMonth(uk,year,m),0);
+  } else {
+    target=(TARGET_OMZET[unitKey]&&TARGET_OMZET[unitKey][ym])||0;
+    realisasi=realisasiOmzetForMonth(unitKey,year,m);
+  }
   if(!target||target<=0) return { target, realisasi, pct:null, bonusPct:0, bonusPool:0 };
   const pct=realisasi/target*100;
   let bonusPct=0;
@@ -1657,7 +1676,8 @@ function renderBonus(c){
     <div class="controlbar" style="align-items:flex-end;">
       <div class="field-inline">
         <label class="f-label">Unit</label>
-        <select id="bnUnit"><option value="">Semua Unit</option>${UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("")}</select>
+        <select id="bnUnit"><option value="">Semua Unit</option><option value="__LAINNYA__">Unit Lain (Gabungan)</option>${UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("")}</select>
+        <div style="font-size:10.5px;color:var(--muted);margin-top:2px;">"Unit Lain (Gabungan)" = semua unit selain Lorongsatu21 dihitung &amp; dibagi jadi satu pool bersama</div>
       </div>
       <div class="field-inline"><label class="f-label">Tahun</label><select id="bnTahun">${yearOptions}</select></div>
       <div class="field-inline"><label class="f-label">Bulan</label><select id="bnBulan">${monthOptions}</select></div>
@@ -1695,10 +1715,6 @@ function renderBonus(c){
   document.getElementById("bnBulan").value=String(now.getMonth()+1);
   document.getElementById("bnTahun").value=String(now.getFullYear());
 
-  function findUnitByNamaMirip(namaCari){
-    const target=normalizeJabatanName(namaCari);
-    return UNITS.find(u=>normalizeJabatanName(u.label)===target || normalizeJabatanName(u.label).includes(target));
-  }
   function renderBanding(){
     const year=parseInt(document.getElementById("bnTahun").value,10);
     const m=parseInt(document.getElementById("bnBulan").value,10);
@@ -1723,13 +1739,13 @@ function renderBonus(c){
   }
   function renderPool(){
     const unitKey=document.getElementById("bnUnit").value;
-    const unitLabelText = unitKey ? unitLabel(unitKey) : "Semua Unit";
+    const unitLabelText = unitKey==="__LAINNYA__" ? "Unit Lain (Gabungan)" : (unitKey ? unitLabel(unitKey) : "Semua Unit");
     const year=parseInt(document.getElementById("bnTahun").value,10);
     const m=parseInt(document.getElementById("bnBulan").value,10);
     const info=computeBonusPool(unitKey,year,m);
     document.getElementById("bnPoolCard").innerHTML = info.target<=0
       ? `<div style="font-size:12.5px;color:var(--muted);">Belum ada target omzet untuk ${unitLabelText} bulan ${MONTH_NAMES[m-1]} ${year} — atur target lewat aplikasi Keuangan (halaman Target & Bonus) dulu.</div>`
-      : `<div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:6px;">Pool untuk: <span style="color:${unitKey?unitColor(unitKey):'var(--moss-dark)'};">${escapeHtml(unitLabelText)}</span></div>
+      : `<div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:6px;">Pool untuk: <span style="color:${(unitKey&&unitKey!=="__LAINNYA__")?unitColor(unitKey):'var(--moss-dark)'};">${escapeHtml(unitLabelText)}</span></div>
         <div class="grid3">
           <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Target</div><div style="font-weight:700;">${formatRupiah(info.target)}</div></div>
           <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Realisasi</div><div style="font-weight:700;">${formatRupiah(info.realisasi)}</div></div>
@@ -1770,9 +1786,10 @@ function renderBonus(c){
     recalcBonusTotal();
   }
   function highlightBonusRows(selectedUnitKey){
+    const activeKeys=unitsInSelection(selectedUnitKey);
     document.querySelectorAll("#bnBody tr[data-unit-key]").forEach(tr=>{
       const uk=tr.getAttribute("data-unit-key");
-      if(!selectedUnitKey || uk===selectedUnitKey){
+      if(!selectedUnitKey || activeKeys.includes(uk)){
         const col=unitColor(uk);
         tr.style.background=col+"1c"; tr.style.borderLeft=`3px solid ${col}`;
       } else {
@@ -1787,8 +1804,9 @@ function renderBonus(c){
   function renderHist(){
     const rows=[...BONUS].sort((a,b)=>b.tanggalBayar.localeCompare(a.tanggalBayar));
     const selectedUnit=document.getElementById("bnUnit").value;
+    const activeKeys=unitsInSelection(selectedUnit);
     document.getElementById("bnHistBody").innerHTML = rows.length ? rows.map(b=>{
-      const hl = !selectedUnit || b.unitKey===selectedUnit;
+      const hl = !selectedUnit || activeKeys.includes(b.unitKey);
       const color = unitColor(b.unitKey);
       const style = hl ? ` style="background:${color}22;border-left:3px solid ${color};"` : '';
       return `
@@ -1831,8 +1849,9 @@ function renderBonus(c){
     if(!updateBobotNote()){ showToast("Total bobot harus tepat 100%"); return; }
     const info=renderPool();
     const unitKey=document.getElementById("bnUnit").value;
-    const unitLabelText = unitKey ? unitLabel(unitKey) : "Semua Unit";
-    const daftar=unitKey ? KARYAWAN.filter(k=>k.status==="aktif" && k.ikutBonus!==false && k.unitKey===unitKey) : KARYAWAN.filter(k=>k.status==="aktif" && k.ikutBonus!==false);
+    const unitLabelText = unitKey==="__LAINNYA__" ? "Unit Lain (Gabungan)" : (unitKey ? unitLabel(unitKey) : "Semua Unit");
+    const activeKeys=unitsInSelection(unitKey);
+    const daftar=KARYAWAN.filter(k=>k.status==="aktif" && k.ikutBonus!==false && activeKeys.includes(k.unitKey));
     if(!daftar.length){ showToast("Belum ada karyawan aktif"); return; }
     const wLevel=(parseFloat(document.getElementById("bnBobotLevel").value)||0)/100;
     const wMasa=(parseFloat(document.getElementById("bnBobotMasaKerja").value)||0)/100;
@@ -1856,10 +1875,12 @@ function renderBonus(c){
   document.getElementById("bnBagiRata").addEventListener("click", ()=>{
     const info=renderPool();
     const unitKey=document.getElementById("bnUnit").value;
-    const unitLabelText = unitKey ? unitLabel(unitKey) : "Semua Unit";
-    const inputs = unitKey
-      ? [...document.querySelectorAll(`#bnBody tr[data-unit-key="${unitKey}"] [data-bonus-input]`)]
-      : [...document.querySelectorAll(`#bnBody [data-bonus-input]`)];
+    const unitLabelText = unitKey==="__LAINNYA__" ? "Unit Lain (Gabungan)" : (unitKey ? unitLabel(unitKey) : "Semua Unit");
+    const activeKeys=unitsInSelection(unitKey);
+    const inputs = [...document.querySelectorAll("#bnBody tr[data-unit-key]")]
+      .filter(tr=>activeKeys.includes(tr.getAttribute("data-unit-key")))
+      .map(tr=>tr.querySelector("[data-bonus-input]"))
+      .filter(Boolean);
     if(!inputs.length){ showToast("Belum ada karyawan aktif"); return; }
     const bagian=Math.floor(info.bonusPool/inputs.length);
     inputs.forEach(inp=>{ inp.value=bagian?bagian.toLocaleString("id-ID"):""; });
