@@ -1720,21 +1720,26 @@ function renderBonus(c){
     const m=parseInt(document.getElementById("bnBulan").value,10);
     const utama=findUnitByNamaMirip("Lorongsatu21");
     if(!utama){ document.getElementById("bnBandingCard").innerHTML=""; return; }
-    const realisasiUtama=realisasiOmzetForMonth(utama.key, year, m);
+    const infoUtama=computeBonusPool(utama.key, year, m);
+    const infoLain=computeBonusPool("__LAINNYA__", year, m);
     const unitLain=UNITS.filter(u=>u.key!==utama.key);
-    const realisasiLain=unitLain.reduce((s,u)=>s+realisasiOmzetForMonth(u.key, year, m), 0);
     document.getElementById("bnBandingCard").innerHTML = `
-      <div class="section-title" style="font-size:12.5px;margin-bottom:10px;">Perbandingan Realisasi Omzet — ${MONTH_NAMES[m-1]} ${year}</div>
+      <div class="section-title" style="font-size:12.5px;margin-bottom:10px;">Perbandingan Realisasi Omzet &amp; Bonus — ${MONTH_NAMES[m-1]} ${year}</div>
       <div class="grid2">
-        <div>
+        <div style="border-left:3px solid ${unitColor(utama.key)};padding-left:10px;">
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">${escapeHtml(utama.label)}</div>
-          <div style="font-weight:700;font-size:16px;color:${unitColor(utama.key)};">${formatRupiah(realisasiUtama)}</div>
+          <div style="font-weight:700;font-size:16px;color:${unitColor(utama.key)};">${formatRupiah(infoUtama.realisasi)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">Total Bonus</div>
+          <div style="font-weight:700;font-size:14px;color:var(--moss-dark);">${formatRupiah(infoUtama.bonusPool)}</div>
         </div>
-        <div>
+        <div style="border-left:3px solid var(--line);padding-left:10px;">
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Gabungan Unit Lain (${unitLain.map(u=>u.label).join(", ")||"-"})</div>
-          <div style="font-weight:700;font-size:16px;">${formatRupiah(realisasiLain)}</div>
+          <div style="font-weight:700;font-size:16px;">${formatRupiah(infoLain.realisasi)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">Total Bonus</div>
+          <div style="font-weight:700;font-size:14px;color:var(--moss-dark);">${formatRupiah(infoLain.bonusPool)}</div>
         </div>
       </div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:10px;">Angka Total Bonus ini yang akan dibagikan ke karyawan masing-masing kelompok — pilih "${escapeHtml(utama.label)}" atau "Unit Lain (Gabungan)" di dropdown Unit di atas untuk membagikannya.</div>
     `;
   }
   function renderPool(){
