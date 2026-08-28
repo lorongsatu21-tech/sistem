@@ -1692,25 +1692,18 @@ function renderBonus(c){
   const yearOptions=years.map(y=>`<option value="${y}">${y}</option>`).join("");
   c.innerHTML=`
     <div class="controlbar" style="align-items:flex-end;">
-      <div class="field-inline">
-        <label class="f-label">Unit</label>
-        <select id="bnUnit"><option value="">Semua Unit</option><option value="__LAINNYA__">Unit Lain (Gabungan)</option>${UNITS.map(u=>`<option value="${u.key}">${escapeHtml(u.label)}</option>`).join("")}</select>
-        <div style="font-size:10.5px;color:var(--muted);margin-top:2px;">"Unit Lain (Gabungan)" = semua unit selain Lorongsatu21 dihitung &amp; dibagi jadi satu pool bersama</div>
-      </div>
       <div class="field-inline"><label class="f-label">Tahun</label><select id="bnTahun">${yearOptions}</select></div>
       <div class="field-inline"><label class="f-label">Bulan</label><select id="bnBulan">${monthOptions}</select></div>
     </div>
-    <div class="card card-pad" style="margin-bottom:18px;" id="bnPoolCard"></div>
     <div class="card card-pad" style="margin-bottom:18px;" id="bnBandingCard"></div>
     <div style="font-size:11.5px;color:var(--muted);margin:-10px 0 18px;">Catatan: seluruh angka di halaman ini (Target, Realisasi, Bonus Pool, dan yang dibagikan ke karyawan) memakai <b>notasi ribuan</b>, konsisten dengan aplikasi Keuangan. Nilai riil (dikali 1000) hanya ditampilkan di halaman <b>Struk Gaji</b>.</div>
 
     <div class="card card-pad" style="margin-bottom:16px;">
-      <div class="section-title" style="font-size:13px;">Bagi Otomatis berdasarkan Kompetensi & Masa Kerja</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Bobot bisa disesuaikan, jumlahnya harus 100%. Jabatan <b>tidak</b> ikut dihitung di sini — tunjangan jabatan diatur terpisah lewat halaman Gaji Bulanan.</div>
+      <div class="section-title" style="font-size:13px;">Bobot Pembagian (Level Kompetensi &amp; Masa Kerja)</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Dipakai oleh tombol "Bagi Otomatis" di kartu Perbandingan di atas. Bobot bisa disesuaikan, jumlahnya harus 100%. Jabatan <b>tidak</b> ikut dihitung di sini — tunjangan jabatan diatur terpisah lewat halaman Gaji Bulanan.</div>
       <div style="display:flex;gap:14px;align-items:end;flex-wrap:wrap;">
         <div class="field-inline" style="max-width:150px;"><label class="f-label">Bobot Level Kompetensi (%)</label><input type="number" id="bnBobotLevel" min="0" max="100" value="60"></div>
         <div class="field-inline" style="max-width:150px;"><label class="f-label">Bobot Masa Kerja (%)</label><input type="number" id="bnBobotMasaKerja" min="0" max="100" value="40"></div>
-        <button class="btn btn-primary btn-sm" id="bnBagiOtomatis">Hitung & Bagi Otomatis</button>
         <span id="bnBobotNote" style="font-size:12px;font-weight:600;"></span>
       </div>
     </div>
@@ -1724,7 +1717,7 @@ function renderBonus(c){
     <button class="btn btn-primary" id="bnSimpan" style="margin-left:8px;">Simpan Pembayaran Bonus</button>
     <span id="bnStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
 
-    <div class="section-title" style="margin-top:26px;">Riwayat Pembayaran Bonus <span style="font-weight:400;color:var(--muted);font-size:12px;">(semua unit, unit terpilih disorot)</span></div>
+    <div class="section-title" style="margin-top:26px;">Riwayat Pembayaran Bonus <span style="font-weight:400;color:var(--muted);font-size:12px;">(semua unit)</span></div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Unit</th><th>Bulan</th><th>Jumlah</th><th></th></tr></thead>
       <tbody id="bnHistBody"></tbody>
@@ -1801,29 +1794,6 @@ function renderBonus(c){
     recalcBonusTotal();
     showToast(`Dibagi otomatis sekaligus: ${n1} karyawan ${utama.label}, ${n2} karyawan unit lain`);
   }
-  function renderPool(){
-    const unitKey=document.getElementById("bnUnit").value;
-    const unitLabelText = unitKey==="__LAINNYA__" ? "Unit Lain (Gabungan)" : (unitKey ? unitLabel(unitKey) : "Semua Unit");
-    const year=parseInt(document.getElementById("bnTahun").value,10);
-    const m=parseInt(document.getElementById("bnBulan").value,10);
-    const info=computeBonusPool(unitKey,year,m);
-    document.getElementById("bnPoolCard").innerHTML = info.totalTarget<=0
-      ? `<div style="font-size:12.5px;color:var(--muted);">Belum ada Target Omzet "Semua Unit" untuk bulan ${MONTH_NAMES[m-1]} ${year} — Total Bonus Keseluruhan dihitung dari target gabungan semua unit ini. Atur dulu lewat aplikasi Keuangan (halaman Target & Bonus, pilih "Semua Unit").</div>`
-      : `<div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">
-          Total Bonus Keseluruhan (semua unit, ${info.bonusPct}% dari omzet gabungan): <b style="color:var(--moss-dark);">${formatRupiah(info.totalBonusPool)}</b>
-          <span style="display:block;font-size:10.5px;">Target Rp${info.totalTarget.toLocaleString('id-ID')} · Realisasi Rp${info.totalRealisasi.toLocaleString('id-ID')} · Pencapaian ${info.totalPct.toFixed(1)}%</span>
-        </div>
-        <div style="border-top:1px dashed var(--line);padding-top:8px;">
-          <div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:6px;">Porsi untuk: <span style="color:${(unitKey&&unitKey!=="__LAINNYA__")?unitColor(unitKey):'var(--moss-dark)'};">${escapeHtml(unitLabelText)}</span></div>
-          <div class="grid3">
-            <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Realisasi Omzet</div><div style="font-weight:700;">${formatRupiah(info.realisasi)}</div></div>
-            <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Porsi dari Omzet Total</div><div style="font-weight:700;">${(info.porsi*100).toFixed(1)}%</div></div>
-            <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Bagian Bonus</div><div style="font-weight:700;">${formatRupiah(info.bonusPool)}</div></div>
-          </div>
-          <div style="margin-top:8px;font-size:13px;font-weight:700;color:var(--moss-dark);">Total Bonus Pool untuk dibagikan: ${formatRupiah(info.bonusPool)}</div>
-        </div>`;
-    return info;
-  }
   function currentBulan(){
     const year=document.getElementById("bnTahun").value;
     const m=String(document.getElementById("bnBulan").value).padStart(2,"0");
@@ -1852,20 +1822,7 @@ function renderBonus(c){
     document.querySelectorAll("[data-bonus-input]").forEach(inp=>{
       inp.addEventListener("input", e=>{ const v=parseMoneyInput(e.target.value); e.target.value=v?v.toLocaleString("id-ID"):""; recalcBonusTotal(); });
     });
-    highlightBonusRows(document.getElementById("bnUnit").value);
     recalcBonusTotal();
-  }
-  function highlightBonusRows(selectedUnitKey){
-    const activeKeys=unitsInSelection(selectedUnitKey);
-    document.querySelectorAll("#bnBody tr[data-unit-key]").forEach(tr=>{
-      const uk=tr.getAttribute("data-unit-key");
-      if(!selectedUnitKey || activeKeys.includes(uk)){
-        const col=unitColor(uk);
-        tr.style.background=col+"1c"; tr.style.borderLeft=`3px solid ${col}`;
-      } else {
-        tr.style.background=""; tr.style.borderLeft="";
-      }
-    });
   }
   function recalcBonusTotal(){
     let total=0; document.querySelectorAll("[data-bonus-input]").forEach(inp=>{ total+=parseMoneyInput(inp.value); });
@@ -1873,17 +1830,13 @@ function renderBonus(c){
   }
   function renderHist(){
     const rows=[...BONUS].sort((a,b)=>b.tanggalBayar.localeCompare(a.tanggalBayar));
-    const selectedUnit=document.getElementById("bnUnit").value;
-    const activeKeys=unitsInSelection(selectedUnit);
     document.getElementById("bnHistBody").innerHTML = rows.length ? rows.map(b=>{
-      const hl = !selectedUnit || activeKeys.includes(b.unitKey);
       const color = unitColor(b.unitKey);
-      const style = hl ? ` style="background:${color}22;border-left:3px solid ${color};"` : '';
       return `
-      <tr class="${hl?'bonus-row-hl':''}"${style}>
+      <tr>
         <td class="rowdate">${b.tanggalBayar}</td>
         <td>${escapeHtml(karyawanLabel(b.karyawanId))}</td>
-        <td>${escapeHtml(unitLabel(b.unitKey))}</td>
+        <td><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${color};margin-right:6px;vertical-align:middle;"></span>${escapeHtml(unitLabel(b.unitKey))}</td>
         <td>${b.bulan}</td>
         <td>${formatRupiah(b.jumlah)}</td>
         <td><button class="btn btn-danger btn-sm" data-delbonus="${b.id}">Hapus</button></td>
@@ -1898,9 +1851,7 @@ function renderBonus(c){
       });
     });
   }
-  function refreshAll(){ renderPool(); renderBanding(); renderKaryawanBonusForm(); renderHist(); }
-  function refreshUnitOnly(){ renderPool(); renderBanding(); highlightBonusRows(document.getElementById("bnUnit").value); renderHist(); }
-  document.getElementById("bnUnit").addEventListener("change", refreshUnitOnly);
+  function refreshAll(){ renderBanding(); renderKaryawanBonusForm(); renderHist(); }
   document.getElementById("bnTahun").addEventListener("change", refreshAll);
   document.getElementById("bnBulan").addEventListener("change", refreshAll);
   function updateBobotNote(){
@@ -1916,47 +1867,27 @@ function renderBonus(c){
   document.getElementById("bnBobotMasaKerja").addEventListener("input", updateBobotNote);
   updateBobotNote();
 
-  document.getElementById("bnBagiOtomatis").addEventListener("click", ()=>{
-    if(!updateBobotNote()){ showToast("Total bobot harus tepat 100%"); return; }
-    const info=renderPool();
-    const unitKey=document.getElementById("bnUnit").value;
-    const unitLabelText = unitKey==="__LAINNYA__" ? "Unit Lain (Gabungan)" : (unitKey ? unitLabel(unitKey) : "Semua Unit");
-    const activeKeys=unitsInSelection(unitKey);
-    const daftar=KARYAWAN.filter(k=>k.status==="aktif" && k.ikutBonus!==false && activeKeys.includes(k.unitKey));
-    if(!daftar.length){ showToast("Belum ada karyawan aktif"); return; }
-    const wLevel=(parseFloat(document.getElementById("bnBobotLevel").value)||0)/100;
-    const wMasa=(parseFloat(document.getElementById("bnBobotMasaKerja").value)||0)/100;
-
-    const levels=daftar.map(k=>Number(k.levelKompetensi)||0);
-    const masaBulan=daftar.map(k=>masaKerjaBulanCount(k.tanggalMulaiKerja));
-    const sumLevel=levels.reduce((s,v)=>s+v,0);
-    const sumMasa=masaBulan.reduce((s,v)=>s+v,0);
-
-    daftar.forEach((k,idx)=>{
-      const propLevel = sumLevel>0 ? levels[idx]/sumLevel : 1/daftar.length;
-      const propMasa = sumMasa>0 ? masaBulan[idx]/sumMasa : 1/daftar.length;
-      const score = wLevel*propLevel + wMasa*propMasa;
-      const bagian = Math.round(info.bonusPool * score);
-      const inp = document.querySelector(`[data-bonus-input="${k.id}"]`);
-      if(inp) inp.value = bagian?bagian.toLocaleString("id-ID"):"";
-    });
-    recalcBonusTotal();
-    showToast(`Dibagi otomatis (${wLevel*100}% Level, ${wMasa*100}% Masa Kerja) ke ${daftar.length} karyawan ${unitLabelText}`);
-  });
   document.getElementById("bnBagiRata").addEventListener("click", ()=>{
-    const info=renderPool();
-    const unitKey=document.getElementById("bnUnit").value;
-    const unitLabelText = unitKey==="__LAINNYA__" ? "Unit Lain (Gabungan)" : (unitKey ? unitLabel(unitKey) : "Semua Unit");
-    const activeKeys=unitsInSelection(unitKey);
-    const inputs = [...document.querySelectorAll("#bnBody tr[data-unit-key]")]
-      .filter(tr=>activeKeys.includes(tr.getAttribute("data-unit-key")))
-      .map(tr=>tr.querySelector("[data-bonus-input]"))
-      .filter(Boolean);
-    if(!inputs.length){ showToast("Belum ada karyawan aktif"); return; }
-    const bagian=Math.floor(info.bonusPool/inputs.length);
-    inputs.forEach(inp=>{ inp.value=bagian?bagian.toLocaleString("id-ID"):""; });
+    const utama=findUnitByNamaMirip("Lorongsatu21");
+    if(!utama){ showToast('Unit "Lorongsatu21" tidak ditemukan'); return; }
+    const year=parseInt(document.getElementById("bnTahun").value,10);
+    const m=parseInt(document.getElementById("bnBulan").value,10);
+    function bagiRataKelompok(unitKeySelector){
+      const info=computeBonusPool(unitKeySelector, year, m);
+      const activeKeys=unitsInSelection(unitKeySelector);
+      const inputs = [...document.querySelectorAll("#bnBody tr[data-unit-key]")]
+        .filter(tr=>activeKeys.includes(tr.getAttribute("data-unit-key")))
+        .map(tr=>tr.querySelector("[data-bonus-input]"))
+        .filter(Boolean);
+      if(!inputs.length) return 0;
+      const bagian=Math.floor(info.bonusPool/inputs.length);
+      inputs.forEach(inp=>{ inp.value=bagian?bagian.toLocaleString("id-ID"):""; });
+      return inputs.length;
+    }
+    const n1=bagiRataKelompok(utama.key);
+    const n2=bagiRataKelompok("__LAINNYA__");
     recalcBonusTotal();
-    showToast(`Dibagi rata ke ${inputs.length} karyawan ${unitLabelText}`);
+    showToast(`Dibagi rata sekaligus: ${n1} karyawan ${utama.label}, ${n2} karyawan unit lain`);
   });
   document.getElementById("bnSimpan").addEventListener("click", async ()=>{
     const bulan=currentBulan();
